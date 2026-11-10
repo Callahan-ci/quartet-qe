@@ -1,0 +1,13 @@
+service: orders-service
+objectives:
+  - {name: place-order-latency, target: "95% of POST /api/orders under 800 ms"}
+  - {name: order-event-delivery, target: "99.9% of orders published on shop.orders.created"}
+metrics:
+  - {name: orders_created_total, type: counter, meaning: Orders accepted}
+  - {name: orders_rejected_total, type: counter, meaning: Orders rejected for stock}
+traces: [{span: orders.place, attributes: [order.id, customer.id]}]
+logs: {fields: [orderId, customerId, level, message]}
+top_journeys:
+  - {journey: Place order through web, share: "71%"}
+  - {journey: Place order through mobile, share: "24%"}
+dashboards: [{name: Checkout health, url: "https://grafana.example.com/d/checkout"}]

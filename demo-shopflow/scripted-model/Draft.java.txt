@@ -1,0 +1,22 @@
+package generated.shop142;
+
+import static io.quartetqe.runtime.Act.*;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.quartetqe.runtime.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+@Story("SHOP-142")
+@ExtendWith(AgentExtension.class)
+class CheckoutReservesStockTest {
+
+    @Test
+    @AcceptanceCriteria("AC1")
+    void placesOrder(TestAgent agent) throws Exception {
+        ActResult order = agent.act("Open http://localhost:18080 and click #place-order",
+                why("Checkout"), on("orders-api"), returns("orderId"));
+        Thread.sleep(3000);
+        assertThat(order.get("orderId")).isNotNull();
+    }
+}

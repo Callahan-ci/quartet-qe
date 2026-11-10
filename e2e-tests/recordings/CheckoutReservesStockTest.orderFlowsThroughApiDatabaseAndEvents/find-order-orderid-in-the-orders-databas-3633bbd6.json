@@ -1,0 +1,19 @@
+{
+  "instruction" : "Find order {{orderId}} in the orders database",
+  "why" : "A reserved order must survive beyond the request",
+  "model" : "scripted",
+  "summary" : "Order found.",
+  "on" : [ "orders-db" ],
+  "steps" : [ {
+    "tool" : "pg_query",
+    "check" : "rows:some",
+    "args" : {
+      "sql" : "SELECT status, customer_id FROM orders WHERE order_id = ?",
+      "params" : [ "${vars.orderId}" ]
+    }
+  } ],
+  "data" : {
+    "status" : "${steps.0.rows.0.status}",
+    "customer_id" : "${steps.0.rows.0.customer_id}"
+  }
+}

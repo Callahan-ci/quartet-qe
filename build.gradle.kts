@@ -1,0 +1,26 @@
+subprojects {
+    group = "io.quartetqe"
+    version = "0.1.0"
+
+    apply(plugin = "java-library")
+
+    repositories { mavenCentral() }
+
+    extensions.configure<JavaPluginExtension> {
+        toolchain { languageVersion.set(JavaLanguageVersion.of(21)) }
+    }
+
+    tasks.withType<JavaCompile> { options.encoding = "UTF-8" }
+
+    tasks.withType<Test> {
+        useJUnitPlatform()
+        testLogging { events("passed", "failed", "skipped") }
+    }
+
+    val catalog = rootProject.extensions.getByType<VersionCatalogsExtension>().named("libs")
+    dependencies {
+        "testImplementation"(catalog.findLibrary("junit-jupiter").get())
+        "testImplementation"(catalog.findLibrary("assertj").get())
+        "testRuntimeOnly"(catalog.findLibrary("junit-launcher").get())
+    }
+}

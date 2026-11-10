@@ -1,0 +1,18 @@
+{
+  "instruction" : "Read the orders created metric counter",
+  "why" : "The business tracks order volume through this counter",
+  "model" : "scripted",
+  "summary" : "Metric read.",
+  "on" : [ "orders-api" ],
+  "steps" : [ {
+    "tool" : "http_request",
+    "check" : "status:200",
+    "args" : {
+      "method" : "GET",
+      "path" : "/metrics"
+    }
+  } ],
+  "data" : {
+    "orders_created_total" : "${steps.0.body.orders_created_total}"
+  }
+}

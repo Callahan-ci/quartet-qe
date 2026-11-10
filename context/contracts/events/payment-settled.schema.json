@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "paymentId",
+    "orderId",
+    "status",
+    "amount",
+    "settledAt"
+  ],
+  "properties": {
+    "paymentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "orderId": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "SETTLED"
+      ]
+    },
+    "amount": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "settledAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

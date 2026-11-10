@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>ShopFlow</title></head>
+<body>
+  <h1>ShopFlow</h1>
+  <form id="order-form">
+    <label>Product
+      <select data-testid="product-select">
+        <option value="SKU-1001">Trail Bottle</option>
+        <option value="SKU-LOW">Limited Lantern</option>
+      </select>
+    </label>
+    <label>Quantity <input data-testid="quantity" type="number" value="1" min="1"></label>
+    <label>Customer <input data-testid="customer" value=""></label>
+    <button type="submit" data-testid="place-order">Place order</button>
+  </form>
+  <section data-testid="order-confirmation" hidden>
+    Your order <strong data-testid="order-number"></strong> is reserved.
+  </section>
+  <p data-testid="order-error" hidden></p>
+  <script>
+    const CONFIRM = true;
+    const value = id => document.querySelector(`[data-testid="${id}"]`);
+    document.getElementById('order-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ customerId: value('customer').value,
+          items: [{ sku: value('product-select').value, quantity: Number(value('quantity').value) }] })
+      });
+      const body = await response.json();
+      if (response.ok && CONFIRM) {
+        value('order-number').textContent = body.orderId;
+        value('order-confirmation').hidden = false;
+      } else if (!response.ok) {
+        value('order-error').textContent = body.message;
+        value('order-error').hidden = false;
+      }
+    });
+  </script>
+</body>
+</html>

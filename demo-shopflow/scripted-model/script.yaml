@@ -1,0 +1,87 @@
+# A hand-written stand-in for a real model, so the demo needs no API key. It makes no decisions.
+# Every tool, driver, rule and gate it passes through is the real one.
+
+- match: "Independent review"
+  turns:
+    - {tool: finish, args: {"findings": [{"lens": "QA", "severity": "warn", "principle": "Quality built in from day one", "message": "No test covers two customers buying the last unit at the same time.", "location": "SHOP-142"}]}}
+- match: "Task: repair test"
+  turns:
+    - {tool: write_test, args: {"content": {"@file": "BrittleCheat.java.txt"}}}
+    - {tool: write_test, args: {"content": {"@file": "BrittleFixed.java.txt"}}}
+    - {tool: validate_test, args: {}}
+    - {tool: finish, args: {"summary": "Replaced the fixed wait and removed the address from the instruction."}}
+- match: "Task: generate tests"
+  turns:
+    - {tool: context_list, args: {}}
+    - {tool: context_read, args: {"path": "engineering-principles/principles.yaml"}}
+    - {tool: context_search, args: {"query": "checkout order stock reservation"}}
+    - {tool: context_read, args: {"path": "services/orders-service.yaml"}}
+    - {tool: context_read, args: {"path": "contracts/openapi/orders-service.yaml"}}
+    - {tool: context_read, args: {"path": "contracts/events/order-created.schema.json"}}
+    - {tool: context_read, args: {"path": "telemetry/orders-service.yaml"}}
+    - {tool: repo_read, args: {"repo": "shopflow", "path": "java/demo/shopflow/ShopService.java"}}
+    - {tool: write_test, args: {"file_name": "CheckoutReservesStockTest.java", "content": {"@file": "Draft.java.txt"}}}
+    - {tool: validate_tests, args: {}}
+    - {tool: write_test, args: {"file_name": "CheckoutReservesStockTest.java", "content": {"@file": "Final.java.txt"}}}
+    - {tool: validate_tests, args: {}}
+    - {tool: finish, args: {"summary": "Seven criteria covered across the API, database, events and web.", "traceability": [{"ac": "AC1", "test": "orderFlowsThroughApiDatabaseAndEvents", "targets": ["orders-api", "orders-db"]}, {"ac": "AC2", "test": "orderFlowsThroughApiDatabaseAndEvents", "targets": ["orders-api", "order-events"]}, {"ac": "AC3", "test": "orderReducesStockByOrderedQuantity", "targets": ["orders-api", "catalog-db"]}, {"ac": "AC4", "test": "orderBeyondAvailableStockIsRejected", "targets": ["orders-api", "catalog-db"]}, {"ac": "AC5", "test": "settledPaymentMarksOrderPaid", "targets": ["orders-api", "order-events"]}, {"ac": "AC6", "test": "customerSeesConfirmationInTheWebShop", "targets": ["shop-web"]}, {"ac": "AC7", "test": "placingAnOrderIsCountedAndMeetsItsObjective", "targets": ["orders-api"]}]}}
+- match: "Instruction: Place an order for 2 units"
+  turns:
+    - {tool: http_request, args: {"method": "POST", "path": "/api/orders", "body": {"customerId": "C-42", "items": [{"sku": "SKU-1001", "quantity": 2}]}}}
+    - {tool: finish, args: {"ok": true, "summary": "Order placed.", "data": {"orderId": "{{steps.0.body.orderId}}", "status": "{{steps.0.body.status}}", "durationMs": "{{steps.0.durationMs}}"}}}
+- match: "Instruction: POST to http"
+  turns:
+    - {tool: http_request, args: {"method": "POST", "path": "/api/orders", "body": {"customerId": "C-42", "items": [{"sku": "SKU-1001", "quantity": 2}]}}}
+    - {tool: finish, args: {"ok": true, "summary": "Order placed.", "data": {"orderId": "{{steps.0.body.orderId}}", "status": "{{steps.0.body.status}}", "durationMs": "{{steps.0.durationMs}}"}}}
+- match: "Instruction: Find order"
+  turns:
+    - {tool: pg_query, args: {"sql": "SELECT status, customer_id FROM orders WHERE order_id = ?", "params": ["{{vars.orderId}}"]}}
+    - {tool: finish, args: {"ok": true, "summary": "Order found.", "data": {"status": "{{steps.0.rows.0.status}}", "customer_id": "{{steps.0.rows.0.customer_id}}"}}}
+- match: "Instruction: Find the order created event"
+  turns:
+    - {tool: kafka_consume, args: {"topic": "shop.orders.created", "match": {"orderId": "{{vars.orderId}}"}}}
+    - {tool: finish, args: {"ok": true, "summary": "Event checked.", "data": {"found": "{{steps.0.found}}", "schemaValid": "{{steps.0.schemaValid}}"}}}
+- match: "Instruction: Read the current stock of SKU-1001"
+  turns:
+    - {tool: mongo_find, args: {"collection": "products", "filter": {"sku": "SKU-1001"}}}
+    - {tool: finish, args: {"ok": true, "summary": "Stock read.", "data": {"stock": "{{steps.0.rows.0.stock}}"}}}
+- match: "Instruction: Read the current stock of SKU-LOW"
+  turns:
+    - {tool: mongo_find, args: {"collection": "products", "filter": {"sku": "SKU-LOW"}}}
+    - {tool: finish, args: {"ok": true, "summary": "Stock read.", "data": {"stock": "{{steps.0.rows.0.stock}}"}}}
+- match: "Instruction: Try to order 5 units"
+  turns:
+    - {tool: http_request, args: {"method": "POST", "path": "/api/orders", "body": {"customerId": "C-42", "items": [{"sku": "SKU-LOW", "quantity": 5}]}}}
+    - {tool: finish, args: {"ok": true, "summary": "Order attempted.", "data": {"status": "{{steps.0.status}}", "code": "{{steps.0.body.code}}"}}}
+- match: "Instruction: Report that payment settled"
+  turns:
+    - {tool: kafka_generate, args: {"topic": "shop.payments.settled", "keyField": "orderId", "overrides": {"orderId": "{{vars.orderId}}", "status": "SETTLED"}}}
+    - {tool: finish, args: {"ok": true, "summary": "Payment reported.", "data": {"published": "{{steps.0.published}}"}}}
+- match: "Instruction: Wait until order"
+  turns:
+    - {tool: http_request, args: {"method": "GET", "path": "/api/orders/{{vars.orderId}}", "until": {"path": "body.status", "equals": "PAID", "timeoutMs": 8000}}}
+    - {tool: finish, args: {"ok": true, "summary": "Order status read.", "data": {"status": "{{steps.0.body.status}}"}}}
+- match: "Instruction: Read the orders created metric"
+  turns:
+    - {tool: http_request, args: {"method": "GET", "path": "/metrics"}}
+    - {tool: finish, args: {"ok": true, "summary": "Metric read.", "data": {"orders_created_total": "{{steps.0.body.orders_created_total}}"}}}
+- match: ["Replay stopped", "Instruction: Order 1 unit"]
+  turns:
+    - {tool: screen_observe, args: {}}
+    - {tool: screen_tap, args: {"role": "button", "name": "Buy now"}}
+    - {tool: screen_find_text, args: {"pattern": "ORD-[0-9]+"}}
+    - {tool: finish, args: {"ok": true, "summary": "Order placed with the renamed button.", "data": {"orderNumber": "{{steps.2.text}}"}}}
+- match: "Instruction: Order 1 unit"
+  turns:
+    - {tool: screen_open, args: {"path": "/"}}
+    - {tool: screen_observe, args: {}}
+    - {tool: screen_choose, args: {"role": "combobox", "name": "Product", "value": "SKU-1001"}}
+    - {tool: screen_type, args: {"role": "spinbutton", "name": "Quantity", "text": "1"}}
+    - {tool: screen_type, args: {"role": "textbox", "name": "Customer", "text": "C-7"}}
+    - {tool: screen_tap, args: {"role": "button", "name": "Place order"}}
+    - {tool: screen_find_text, args: {"pattern": "ORD-[0-9]+"}}
+    - {tool: finish, args: {"ok": true, "summary": "Order placed.", "data": {"orderNumber": "{{steps.6.text}}"}}}
+- match: "Claim to check: The page tells"
+  turns:
+    - {tool: screen_find_text, args: {"pattern": "Your order ORD-[0-9]+ is reserved"}}
+    - {tool: finish, args: {"holds": true, "evidence": ["{{steps.0.text}}"]}}

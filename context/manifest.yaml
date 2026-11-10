@@ -1,0 +1,7 @@
+product: ShopFlow (demonstration system, replace with your own)
+owner: quality-engineering
+read_first:
+  - engineering-principles/principles.yaml
+  - engineering-principles/quality-engineering.md
+  - engineering-principles/tech-stack.yaml
+services: [orders-service]

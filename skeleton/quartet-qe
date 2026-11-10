@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Runs Quartet QE in this tests repo. Try: ./quartet-qe doctor
+cd "$(dirname "$0")"
+if [ -z "$QUARTET_LOCAL" ] && [ ! -f .quartet/settings.gradle.kts ]; then
+  git submodule update --init || exit 1
+fi
+./gradlew -q quartetClasspath || exit 1
+exec "${JAVA_HOME:+$JAVA_HOME/bin/}java" -cp "$(cat build/quartet.classpath)" io.quartetqe.generator.Main "$@"

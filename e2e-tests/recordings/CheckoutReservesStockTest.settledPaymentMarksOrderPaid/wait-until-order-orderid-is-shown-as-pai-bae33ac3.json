@@ -1,0 +1,23 @@
+{
+  "instruction" : "Wait until order {{orderId}} is shown as PAID",
+  "why" : "Fulfilment only starts once an order is paid",
+  "model" : "scripted",
+  "summary" : "Order status read.",
+  "on" : [ "orders-api" ],
+  "steps" : [ {
+    "tool" : "http_request",
+    "check" : "status:200",
+    "args" : {
+      "method" : "GET",
+      "path" : "/api/orders/${vars.orderId}",
+      "until" : {
+        "path" : "body.status",
+        "equals" : "PAID",
+        "timeoutMs" : 8000
+      }
+    }
+  } ],
+  "data" : {
+    "status" : "${steps.0.body.status}"
+  }
+}

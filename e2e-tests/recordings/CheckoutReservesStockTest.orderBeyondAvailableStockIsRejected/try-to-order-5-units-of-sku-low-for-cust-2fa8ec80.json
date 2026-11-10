@@ -1,0 +1,26 @@
+{
+  "instruction" : "Try to order 5 units of SKU-LOW for customer C-42, which exceeds available stock",
+  "why" : "Customers must never be sold items that are out of stock",
+  "model" : "scripted",
+  "summary" : "Order attempted.",
+  "on" : [ "orders-api" ],
+  "steps" : [ {
+    "tool" : "http_request",
+    "check" : "status:409",
+    "args" : {
+      "method" : "POST",
+      "path" : "/api/orders",
+      "body" : {
+        "customerId" : "C-42",
+        "items" : [ {
+          "sku" : "SKU-LOW",
+          "quantity" : 5
+        } ]
+      }
+    }
+  } ],
+  "data" : {
+    "status" : "${steps.0.status}",
+    "code" : "${steps.0.body.code}"
+  }
+}

@@ -1,0 +1,7 @@
+# Source repositories the agent may read.
+# provider: local, github, gitlab or ado. Remote entries may override connector fields such as owner and repo.
+repos:
+  - name: shopflow
+    provider: local
+    path: ../demo-shopflow/src/main
+    purpose: Demonstration orders service and web shop

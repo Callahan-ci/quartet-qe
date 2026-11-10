@@ -1,0 +1,5 @@
+# Synthetic data only.
+customers: [C-42, C-7]
+products:
+  - {sku: SKU-1001, note: plentiful stock}
+  - {sku: SKU-LOW, note: exactly one unit, used for rejection paths}

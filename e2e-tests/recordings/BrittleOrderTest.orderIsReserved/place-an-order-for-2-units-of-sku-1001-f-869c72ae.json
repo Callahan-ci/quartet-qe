@@ -1,0 +1,27 @@
+{
+  "instruction" : "Place an order for 2 units of SKU-1001 for customer C-42",
+  "why" : "A customer checking out is the start of the journey",
+  "model" : "scripted",
+  "summary" : "Order placed.",
+  "on" : [ "orders-api" ],
+  "steps" : [ {
+    "tool" : "http_request",
+    "check" : "status:201",
+    "args" : {
+      "method" : "POST",
+      "path" : "/api/orders",
+      "body" : {
+        "customerId" : "C-42",
+        "items" : [ {
+          "sku" : "SKU-1001",
+          "quantity" : 2
+        } ]
+      }
+    }
+  } ],
+  "data" : {
+    "orderId" : "${steps.0.body.orderId}",
+    "status" : "${steps.0.body.status}",
+    "durationMs" : "${steps.0.durationMs}"
+  }
+}

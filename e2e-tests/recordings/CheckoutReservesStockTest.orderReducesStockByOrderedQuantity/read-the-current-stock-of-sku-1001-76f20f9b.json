@@ -1,0 +1,20 @@
+{
+  "instruction" : "Read the current stock of SKU-1001",
+  "why" : "Stock levels show whether the reservation really happened",
+  "model" : "scripted",
+  "summary" : "Stock read.",
+  "on" : [ "catalog-db" ],
+  "steps" : [ {
+    "tool" : "mongo_find",
+    "check" : "rows:some",
+    "args" : {
+      "collection" : "products",
+      "filter" : {
+        "sku" : "SKU-1001"
+      }
+    }
+  } ],
+  "data" : {
+    "stock" : "${steps.0.rows.0.stock}"
+  }
+}

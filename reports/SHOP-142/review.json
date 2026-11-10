@@ -1,0 +1,9 @@
+{
+  "story" : "SHOP-142",
+  "approved" : true,
+  "detectionRate" : 1.0,
+  "falseAlarms" : 0,
+  "passed" : 6,
+  "failed" : 0,
+  "skipped" : 0
+}

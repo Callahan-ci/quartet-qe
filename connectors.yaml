@@ -1,0 +1,31 @@
+# Tokens come from environment variables. Delete the sections you do not use.
+jira:
+  baseUrl: "${JIRA_URL:-https://your-company.atlassian.net}"
+  email: "${JIRA_EMAIL:-}"
+  token: "${JIRA_TOKEN:-}"
+  acceptanceCriteriaField: ""   # for example customfield_10042
+
+azureDevOps:
+  orgUrl: "${ADO_ORG_URL:-https://dev.azure.com/your-org}"
+  project: "${ADO_PROJECT:-your-project}"
+  repository: "${ADO_REPOSITORY:-your-repo}"
+  pipelineId: "${ADO_PIPELINE_ID:-1}"
+  token: "${ADO_TOKEN:-}"
+
+github:
+  apiUrl: "${GITHUB_API_URL:-https://api.github.com}"
+  owner: "${GITHUB_OWNER:-your-org}"
+  repo: "${GITHUB_REPO:-your-repo}"
+  workflow: "${GITHUB_WORKFLOW:-e2e.yml}"
+  token: "${GITHUB_TOKEN:-}"
+
+gitlab:
+  apiUrl: "${GITLAB_API_URL:-https://gitlab.com/api/v4}"
+  project: "${GITLAB_PROJECT:-your-group/your-repo}"
+  token: "${GITLAB_TOKEN:-}"
+
+jenkins:
+  baseUrl: "${JENKINS_URL:-https://jenkins.your-company.com}"
+  job: "${JENKINS_JOB:-team/app/e2e}"
+  user: "${JENKINS_USER:-}"
+  token: "${JENKINS_TOKEN:-}"

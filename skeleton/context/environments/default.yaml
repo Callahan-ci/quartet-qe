@@ -1,0 +1,10 @@
+name: default
+# Tests can only reach hosts listed here.
+guard:
+  production: false
+  allowHosts: [localhost]
+targets:
+  example-api:
+    type: api
+    description: Replace with your service.
+    baseUrl: "${EXAMPLE_API_URL:-http://localhost:8080}"

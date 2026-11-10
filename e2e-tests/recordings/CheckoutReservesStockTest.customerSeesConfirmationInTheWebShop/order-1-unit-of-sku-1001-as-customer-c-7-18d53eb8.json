@@ -1,0 +1,54 @@
+{
+  "instruction" : "Order 1 unit of SKU-1001 as customer C-7 through the web shop",
+  "why" : "Most customers place their orders through the web shop",
+  "model" : "scripted",
+  "summary" : "Order placed.",
+  "on" : [ "shop-web" ],
+  "steps" : [ {
+    "tool" : "screen_open",
+    "check" : "ok",
+    "args" : {
+      "path" : "/"
+    }
+  }, {
+    "tool" : "screen_choose",
+    "check" : "ok",
+    "args" : {
+      "role" : "combobox",
+      "name" : "Product",
+      "value" : "SKU-1001"
+    }
+  }, {
+    "tool" : "screen_type",
+    "check" : "ok",
+    "args" : {
+      "role" : "spinbutton",
+      "name" : "Quantity",
+      "text" : "1"
+    }
+  }, {
+    "tool" : "screen_type",
+    "check" : "ok",
+    "args" : {
+      "role" : "textbox",
+      "name" : "Customer",
+      "text" : "C-7"
+    }
+  }, {
+    "tool" : "screen_tap",
+    "check" : "ok",
+    "args" : {
+      "role" : "button",
+      "name" : "Place order"
+    }
+  }, {
+    "tool" : "screen_find_text",
+    "check" : "found:true",
+    "args" : {
+      "pattern" : "ORD-[0-9]+"
+    }
+  } ],
+  "data" : {
+    "orderNumber" : "${steps.5.text}"
+  }
+}

@@ -1,0 +1,70 @@
+# Engineering principles as enforceable rules.
+# Set severity to block, warn or off to suit your team.
+principles:
+  - name: "Design for emergent reuse"
+    forTests: "Extract helpers only when repetition appears. Reuse shared test data and targets."
+    rules:
+      - {id: REUSE-EMERGENT, severity: warn, description: "The same instruction is repeated three or more times"}
+  - name: "Build evolutionary systems to enable easy incremental change"
+    forTests: "Tests describe intent, so a redesign changes recordings rather than tests."
+    rules:
+      - {id: EVOL-INTENT, severity: block, description: "Instructions state intent, not selectors, SQL or URLs"}
+  - name: "Small and simple reduce complexity ensure testable"
+    forTests: "One purpose per test and one outcome per act."
+    rules:
+      - {id: SIMPLE-FOCUS, severity: block, description: "A test has at most two criteria and eight steps"}
+      - {id: SIMPLE-ONE-OUTCOME, severity: block, description: "An act has a single outcome"}
+  - name: "Decouple and be cohesive as possible"
+    forTests: "Tests are independent, and each act touches one system so failures point to one place."
+    rules:
+      - {id: DECOUPLE-ISOLATED, severity: block, description: "No shared mutable state or execution order"}
+      - {id: DECOUPLE-ONE-TARGET, severity: warn, description: "An act targets one system"}
+  - name: "Data stewardship ensure security and protection"
+    forTests: "Only synthetic data. Databases are read-only unless a target explicitly allows writes."
+    rules:
+      - {id: DATA-NO-PII, severity: block, description: "No real-looking personal data in tests"}
+  - name: "Production ready from the start"
+    forTests: "Tests run anywhere without edits. A walking skeleton proves the layers connect first."
+    rules:
+      - {id: PROD-ENV-AGNOSTIC, severity: block, description: "No hard-coded hosts"}
+      - {id: PROD-WALKING-SKELETON, severity: block, description: "One thin slice crosses the layers of the story"}
+  - name: "Secure by design"
+    forTests: "Credentials stay in the environment. The agent can only reach allow-listed hosts."
+    rules:
+      - {id: SEC-NO-SECRETS, severity: block, description: "No secrets in test code"}
+  - name: "Automation by default"
+    forTests: "Everything runs unattended in CI, with no manual steps or disabled tests."
+    rules:
+      - {id: AUTO-COMPILE, severity: block, description: "Tests compile against the framework"}
+      - {id: AUTO-WIRING, severity: block, description: "Tests use @Story and AgentExtension"}
+      - {id: AUTO-NO-MANUAL, severity: block, description: "No disabled tests, TODOs or FIXMEs"}
+  - name: "Understandability and Observability"
+    forTests: "Every step says why it matters. Tests check the telemetry the service promises."
+    rules:
+      - {id: OBS-WHY, severity: block, description: "Every act has a target and a real business reason"}
+      - {id: OBS-TELEMETRY, severity: warn, description: "At least one test checks service telemetry"}
+  - name: "Performance and Reliability"
+    forTests: "No fixed waits. Tests check the service objectives."
+    rules:
+      - {id: PERF-NO-SLEEP, severity: block, description: "No Thread.sleep"}
+      - {id: PERF-SLO, severity: warn, description: "At least one test compares latency with its objective"}
+  - name: "Feedback early and Often"
+    forTests: "Problems are found in the backlog, before a test exists."
+    rules:
+      - {id: READY-CRITERIA, severity: block, description: "The story has acceptance criteria"}
+      - {id: READY-MEASURABLE, severity: warn, description: "Criteria avoid vague words that cannot be tested"}
+      - {id: READY-VALUE, severity: warn, description: "The story states its business value"}
+      - {id: READY-NEGATIVE, severity: warn, description: "The story describes a failure path"}
+  - name: "Quality built in from day one"
+    forTests: "The AI is held to evidence: strong oracles, known facts, full coverage, and proof that it did its homework."
+    rules:
+      - {id: ASSERT-ORACLE, severity: block, description: "Every test and its final step are checked"}
+      - {id: ASSERT-DETERMINISTIC, severity: block, description: "Judgement checks are paired with exact assertions"}
+      - {id: ASSERT-STRENGTH, severity: block, description: "Tests assert values rather than existence"}
+      - {id: ASSERT-NO-SWALLOW, severity: block, description: "No try blocks that can hide failures"}
+      - {id: COVER-TRACE, severity: block, description: "Tests map to real acceptance criteria"}
+      - {id: GROUND-KNOWN, severity: block, description: "Endpoints, topics, data and targets exist in the context repo"}
+      - {id: AUDIT-READ-PRINCIPLES, severity: block, description: "The AI read the principles"}
+      - {id: AUDIT-READ-CONTRACTS, severity: block, description: "The AI read the contracts"}
+      - {id: AUDIT-READ-TELEMETRY, severity: block, description: "The AI read the telemetry"}
+      - {id: AUDIT-SELF-CHECK, severity: block, description: "The AI validated its final edit"}

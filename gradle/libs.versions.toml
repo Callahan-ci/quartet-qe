@@ -1,0 +1,29 @@
+[versions]
+jackson = "2.20.0"
+junit = "5.13.4"
+assertj = "3.27.6"
+playwright = "1.56.0"
+kafka = "4.1.0"
+mongo = "5.6.1"
+postgres = "42.7.8"
+jsonschema = "1.5.6"
+springKafka = "4.0.0"
+embeddedPostgres = "2.1.1"
+flapdoodle = "4.21.0"
+slf4j = "2.0.17"
+
+[libraries]
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-yaml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml", version.ref = "jackson" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junit-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+playwright = { module = "com.microsoft.playwright:playwright", version.ref = "playwright" }
+kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka" }
+mongo-driver = { module = "org.mongodb:mongodb-driver-sync", version.ref = "mongo" }
+postgres = { module = "org.postgresql:postgresql", version.ref = "postgres" }
+jsonschema = { module = "com.networknt:json-schema-validator", version.ref = "jsonschema" }
+spring-kafka-test = { module = "org.springframework.kafka:spring-kafka-test", version.ref = "springKafka" }
+embedded-postgres = { module = "io.zonky.test:embedded-postgres", version.ref = "embeddedPostgres" }
+flapdoodle-mongo = { module = "de.flapdoodle.embed:de.flapdoodle.embed.mongo", version.ref = "flapdoodle" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }

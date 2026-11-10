@@ -1,0 +1,6 @@
+language: Java 21
+build: Gradle
+test_runner: JUnit 5 with AssertJ
+screens: agent.act surface layer (browsers through Playwright, Android through adb, iOS through native/ios)
+messaging: Kafka with JSON Schema events
+databases: [PostgreSQL, MongoDB]

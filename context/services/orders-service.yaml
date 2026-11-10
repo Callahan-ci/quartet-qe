@@ -1,0 +1,15 @@
+name: orders-service
+owner: team-checkout
+purpose: Accepts orders, reserves stock and tracks payment.
+repo: shopflow
+api: contracts/openapi/orders-service.yaml
+consumers:
+  - name: shop-web
+    pact: contracts/pact/shop-web-orders-service.json
+data:
+  postgres: {table: orders, columns: [order_id, customer_id, status, total, created_at]}
+  mongo: {collection: products, fields: [sku, name, price, stock]}
+events:
+  publishes: [{topic: shop.orders.created, schema: contracts/events/order-created.schema.json}]
+  consumes: [{topic: shop.payments.settled, schema: contracts/events/payment-settled.schema.json}]
+telemetry: telemetry/orders-service.yaml

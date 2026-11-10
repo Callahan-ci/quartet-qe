@@ -1,0 +1,44 @@
+{
+  "consumer": {
+    "name": "shop-web"
+  },
+  "provider": {
+    "name": "orders-service"
+  },
+  "interactions": [
+    {
+      "description": "a valid order",
+      "providerState": "SKU-1001 is in stock",
+      "request": {
+        "method": "POST",
+        "path": "/api/orders",
+        "body": {
+          "customerId": "C-7",
+          "items": [
+            {
+              "sku": "SKU-1001",
+              "quantity": 1
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "status": "RESERVED"
+        },
+        "matchingRules": {
+          "$.body.orderId": {
+            "match": "regex",
+            "regex": "ORD-[0-9]+"
+          }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "pactSpecification": {
+      "version": "2.0.0"
+    }
+  }
+}

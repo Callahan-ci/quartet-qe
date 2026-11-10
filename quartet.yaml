@@ -1,0 +1,10 @@
+# Where this agent finds everything. Teams change these paths and commands to fit their project.
+context: context
+environment: context/environments/demo.yaml
+connectors: connectors.yaml
+reports: reports
+faults: context/quality/faults.yaml
+tests:
+  command: ["./gradlew", ":e2e-tests:test", "--rerun", "--tests", "{selector}", "--console=plain"]
+  results: e2e-tests/build/test-results/test
+  source: e2e-tests/src/test/java

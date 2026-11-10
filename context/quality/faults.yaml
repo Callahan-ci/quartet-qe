@@ -1,0 +1,17 @@
+# Planted changes that prove the tests can catch bugs.
+# Connect control to feature flags, a fault-injection proxy or a test build.
+threshold: 0.8
+cacheDir: e2e-tests/recordings
+control:
+  url: http://localhost:18080/__faults
+faults:
+  - {id: wrong-status, description: "Order is saved with the wrong status", expectedToFail: ["AC1"]}
+  - {id: no-persist, description: "Order is never written to the database", expectedToFail: ["AC1"]}
+  - {id: no-event, description: "Order event is not published", expectedToFail: ["AC2"]}
+  - {id: no-stock-decrement, description: "Stock is not reserved", expectedToFail: ["AC3"]}
+  - {id: allow-oversell, description: "Orders beyond stock are accepted", expectedToFail: ["AC4"]}
+  - {id: ignore-payment, description: "Payment settlement is ignored", expectedToFail: ["AC5"]}
+  - {id: hide-confirmation, description: "Web confirmation is not shown", expectedToFail: ["AC6"]}
+  - {id: no-metric, description: "Orders are not counted", expectedToFail: ["AC7"]}
+  - {id: slow-response, description: "Order placement exceeds its objective", expectedToFail: ["AC7"]}
+  - {id: ui-renamed, description: "Harmless redesign renames the order button", benign: true}

@@ -1,0 +1,51 @@
+openapi: 3.0.3
+info: {title: Orders Service, version: 1.0.0}
+paths:
+  /api/orders:
+    post:
+      summary: Place an order and reserve stock
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId, items]
+              properties:
+                customerId: {type: string}
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [sku, quantity]
+                    properties: {sku: {type: string}, quantity: {type: integer, minimum: 1}}
+      responses:
+        "201":
+          description: Reserved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orderId: {type: string, example: ORD-1234567890}
+                  status: {type: string, enum: [RESERVED, PAID]}
+                  total: {type: number}
+        "409":
+          description: Not enough stock
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: {type: string, enum: [INSUFFICIENT_STOCK]}
+                  message: {type: string}
+  /api/orders/{orderId}:
+    get:
+      summary: Read an order
+      responses:
+        "200": {description: The order, with orderId, customerId, status and total}
+        "404": {description: Not found}
+  /metrics:
+    get:
+      summary: Service counters as JSON
+      responses:
+        "200": {description: "orders_created_total and orders_rejected_total"}

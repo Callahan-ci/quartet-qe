@@ -1,0 +1,21 @@
+{
+  "instruction" : "Find the order created event for order {{orderId}}",
+  "why" : "Downstream teams rely on this event to fulfil the order",
+  "model" : "scripted",
+  "summary" : "Event checked.",
+  "on" : [ "order-events" ],
+  "steps" : [ {
+    "tool" : "kafka_consume",
+    "check" : "found:true",
+    "args" : {
+      "topic" : "shop.orders.created",
+      "match" : {
+        "orderId" : "${vars.orderId}"
+      }
+    }
+  } ],
+  "data" : {
+    "found" : "${steps.0.found}",
+    "schemaValid" : "${steps.0.schemaValid}"
+  }
+}

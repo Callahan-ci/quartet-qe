@@ -1,0 +1,9 @@
+context: context
+environment: context/environments/default.yaml
+connectors: connectors.yaml
+reports: reports
+faults: context/quality/faults.yaml
+tests:
+  command: ["./gradlew", "test", "--rerun", "--tests", "{selector}", "--console=plain"]
+  results: build/test-results/test
+  source: src/test/java

@@ -1,0 +1,36 @@
+name: demo
+guard:
+  production: false
+  allowHosts: [localhost, 127.0.0.1]
+targets:
+  orders-api:
+    type: api
+    description: Orders REST API.
+    baseUrl: "${ORDERS_API_URL:-http://localhost:18080}"
+    context: [contracts/openapi/orders-service.yaml]
+  shop-web:
+    type: screen
+    description: The customer web shop, served at /.
+    baseUrl: "${SHOP_WEB_URL:-http://localhost:18080}"
+    devices:
+      desktop: {kind: web, engine: chromium}
+  order-events:
+    type: kafka
+    description: Order and payment events.
+    brokers: "${KAFKA_BROKERS:-localhost:19092}"
+    schemas:
+      shop.orders.created: contracts/events/order-created.schema.json
+      shop.payments.settled: contracts/events/payment-settled.schema.json
+  orders-db:
+    type: postgres
+    description: Orders database, read-only for tests.
+    url: "${ORDERS_DB_URL:-jdbc:postgresql://localhost:15432/postgres}"
+    user: "${ORDERS_DB_USER:-postgres}"
+    password: "${ORDERS_DB_PASSWORD:-postgres}"
+    context: [services/orders-service.yaml]
+  catalog-db:
+    type: mongo
+    description: Product catalog and stock.
+    url: "${CATALOG_DB_URL:-mongodb://localhost:27117}"
+    database: catalog
+    context: [services/orders-service.yaml]

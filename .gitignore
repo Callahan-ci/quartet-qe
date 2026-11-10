@@ -1,0 +1,7 @@
+.gradle/
+build/
+*/build/
+.env
+.demo-logs/
+docs/
+.DS_Store
