@@ -291,4 +291,18 @@ class OnboardingTest {
         assertThat(later.path("setup_strength").path("label").asText()).isEqualTo("Good");
         assertThat(ids(later.path("advice")).toString()).contains("tracker", "jenkins");
     }
+
+    @Test
+    void aNativeAndroidAppIsDescribedByItsPackageWithNoWebAddress() throws Exception {
+        JsonNode saved = configure("environment_target", "{\"name\":\"calculator\",\"type\":\"screen\",\"description\":\"The calculator app\",\"app\":{\"android\":\"org.example.calculator\"}}");
+
+        assertThat(saved.path("hosts_now_allowed")).isEmpty();
+        String environment = Files.readString(project.resolve("context/environments/default.yaml"));
+        assertThat(environment).contains("org.example.calculator").contains("kind: \"android\"").doesNotContain("baseUrl").doesNotContain("example-api");
+        assertThat(call("quartet_onboarding", "{}").path("ready_to_write_first_test").asBoolean()).isFalse();
+
+        assertThatThrownBy(() -> configure("environment_target", "{\"name\":\"bad\",\"type\":\"screen\",\"app\":{\"android\":\"not an id\"}}")).hasMessageContaining("not an app id");
+        assertThatThrownBy(() -> configure("environment_target", "{\"name\":\"bad\",\"type\":\"screen\",\"app\":{\"windows\":\"x.y\"}}")).hasMessageContaining("android");
+        assertThatThrownBy(() -> configure("environment_target", "{\"name\":\"web\",\"type\":\"screen\"}")).hasMessageContaining("'baseUrl' is needed");
+    }
 }

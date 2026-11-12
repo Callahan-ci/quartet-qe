@@ -62,7 +62,7 @@ final class Onboarding {
                 Tool.of("quartet_configure", "Write one part of the setup from what the user told you. Sections: product, environment_target (a URL, API, database or Kafka the tests use), repo (source code the AI may read), connector (non-secret settings for Jira, Azure DevOps, GitHub, GitLab or Jenkins), context_file (a note about the system), contract_from_url (download an OpenAPI or schema file). Never put a token or password in values: name the variable (password_env) and have the user run ./quartet-qe secret.", """
                     {"type":"object","required":["section","values"],"properties":{
                       "section":{"type":"string","enum":["product","environment_target","repo","connector","context_file","contract_from_url","customize_default"]},
-                      "values":{"type":"object","description":"product: name, owner, description. environment_target: name, type (api|screen|kafka|postgres|mongo), description, baseUrl or url or brokers, database (mongo), user, user_env, password_env, devices, schemas, context, howToStart. repo: name, provider (local|github|gitlab|ado), path or owner and repo and ref, purpose. connector: kind (jira|azureDevOps|github|gitlab|jenkins) and settings (key and value pairs such as baseUrl, project, owner, repo). context_file: path and content. contract_from_url: url and optional path."}}}""",
+                      "values":{"type":"object","description":"product: name, owner, description. environment_target: name, type (api|screen|kafka|postgres|mongo), description, baseUrl or url or brokers (a native mobile app has app instead: {android: package name, ios: bundle id}, no address), database (mongo), user, user_env, password_env, devices, schemas, context, howToStart. repo: name, provider (local|github|gitlab|ado), path or owner and repo and ref, purpose. connector: kind (jira|azureDevOps|github|gitlab|jenkins) and settings (key and value pairs such as baseUrl, project, owner, repo). context_file: path and content. contract_from_url: url and optional path."}}}""",
                         this::configure),
                 Tool.of("quartet_secrets_status", "Which secrets the setup needs and which are saved, by name only. Values are never shown. Tell the user to run ./quartet-qe secret NAME in a terminal for each missing one.", "{\"type\":\"object\",\"properties\":{}}",
                         args -> secretsStatus()),
@@ -414,12 +414,39 @@ final class Onboarding {
         List<String> addresses = new ArrayList<>();
         switch (type) {
             case "api", "screen" -> {
-                String base = need(values, "baseUrl");
-                webAddress(base);
-                target.put("baseUrl", base);
-                addresses.add(base);
-                if (type.equals("screen")) {
-                    target.set("devices", values.has("devices") ? values.get("devices") : Json.parseYaml("desktop: {kind: web, engine: chromium, preset: desktop}"));
+                JsonNode app = values.path("app");
+                boolean nativeApp = type.equals("screen") && app.isObject() && !app.isEmpty();
+                if (nativeApp) {
+                    // A native app has no web address. It is launched by its package or bundle id.
+                    ObjectNode appNode = target.putObject("app");
+                    for (String platform : List.of("android", "ios")) {
+                        String id = app.path(platform).asText("").strip();
+                        if (id.isEmpty()) continue;
+                        if (!id.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_-]*)+")) {
+                            throw new IllegalArgumentException("'" + id + "' is not an app id. Use the package name, such as org.example.calculator.");
+                        }
+                        appNode.put(platform, id);
+                    }
+                    if (appNode.isEmpty()) throw new IllegalArgumentException("app needs android (a package name) or ios (a bundle id).");
+                    if (!values.path("baseUrl").asText("").isBlank()) {
+                        webAddress(values.path("baseUrl").asText());
+                        target.put("baseUrl", values.path("baseUrl").asText());
+                        addresses.add(values.path("baseUrl").asText());
+                    }
+                    ObjectNode devices = values.has("devices") ? (ObjectNode) values.get("devices") : Json.obj();
+                    if (devices.isEmpty()) {
+                        if (appNode.has("android")) devices.set("android", Json.parseYaml("{kind: android}"));
+                        if (appNode.has("ios")) devices.set("ios", Json.parseYaml("{kind: ios, enabled: true}"));
+                    }
+                    target.set("devices", devices);
+                } else {
+                    String base = need(values, "baseUrl");
+                    webAddress(base);
+                    target.put("baseUrl", base);
+                    addresses.add(base);
+                    if (type.equals("screen")) {
+                        target.set("devices", values.has("devices") ? values.get("devices") : Json.parseYaml("desktop: {kind: web, engine: chromium, preset: desktop}"));
+                    }
                 }
             }
             case "kafka" -> {

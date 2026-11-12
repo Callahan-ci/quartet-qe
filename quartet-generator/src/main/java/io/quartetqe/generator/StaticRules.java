@@ -181,7 +181,9 @@ public final class StaticRules {
         } else {
             Set<String> layers = new HashSet<>();
             skeletons.get(0).acts().forEach(act -> layers.addAll(act.on()));
-            if (layers.size() < 2) add(out, "PROD-WALKING-SKELETON", skeletons.get(0).name(), "The skeleton should cross at least two layers.");
+            // It cannot cross more layers than the product has. A standalone app has one target, so one is enough there.
+            int wanted = Math.min(2, Math.max(1, targets.size()));
+            if (layers.size() < wanted) add(out, "PROD-WALKING-SKELETON", skeletons.get(0).name(), "The skeleton should cross at least two layers.");
         }
 
         // The same act written in several test classes belongs in a reusable step, so one recording serves them all.

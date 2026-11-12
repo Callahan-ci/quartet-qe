@@ -85,14 +85,18 @@ final class Readme {
             targets.forEach(row -> out.append(row).append('\n'));
         }
 
+        String device = deviceNotes(main);
         out.append("""
 
             ## Run the tests
 
             ```bash
-            ./gradlew test             # replays recorded steps: fast, no AI, no key
+            ./gradlew test             # replays recorded steps with no AI and no key
             ./gradlew test -Pwatch     # the same in a visible browser, for debugging
             ```
+            """);
+        out.append(device);
+        out.append("""
 
             ## Change or add tests
 
@@ -115,6 +119,32 @@ final class Readme {
         row(out, root, "Jenkinsfile", "`Jenkinsfile`", "Runs these tests on every branch and pull request");
         row(out, root, "quartet.yaml", "`quartet.yaml`", "Settings for Quartet QE");
         return out.toString().stripTrailing();
+    }
+
+    /** Tests of a native app need a device with the app installed. Say so, from what the environment names. */
+    private static String deviceNotes(Main main) throws IOException {
+        Path file = main.root.resolve(main.environmentPath);
+        if (!Files.isRegularFile(file)) return "";
+        List<String> apps = new ArrayList<>();
+        boolean android = false;
+        boolean ios = false;
+        for (var entry : Json.parseYaml(Files.readString(file)).path("targets").properties()) {
+            JsonNode target = entry.getValue();
+            for (var device : target.path("devices").properties()) {
+                String kind = device.getValue().path("kind").asText("");
+                android |= kind.equals("android");
+                ios |= kind.equals("ios");
+            }
+            target.path("app").properties().forEach(app -> apps.add("`" + app.getValue().asText() + "` (" + app.getKey() + ")"));
+        }
+        if (!android && !ios) return "";
+        StringBuilder out = new StringBuilder("\n### Before you run: a device with the app\n\n");
+        out.append("These tests drive a native app, so they need a device ready:\n\n");
+        if (android) out.append("1. Start an Android emulator or connect a phone, so that `adb devices` lists it. Set `ANDROID_HOME` to your Android SDK.\n");
+        if (ios) out.append("1. Start an iOS simulator with the Quartet runner (see Quartet QE's `native/ios`).\n");
+        out.append("2. Install the app").append(apps.isEmpty() ? "" : ": " + String.join(", ", apps)).append(". For Android, `adb install app.apk`.\n");
+        out.append("3. Run the tests as above. Each test starts the app from cold, so tests do not depend on each other.\n");
+        return out.toString();
     }
 
     private static void row(StringBuilder out, Path root, String relative, String label, String what) {

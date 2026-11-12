@@ -257,4 +257,19 @@ class LeanRepoTest {
         process.waitFor();
         return output;
     }
+
+    @Test
+    void aReadmeForANativeAppSaysWhichDeviceAndAppAreNeeded() throws Exception {
+        configure("environment_target", "{\"name\":\"calculator\",\"type\":\"screen\",\"description\":\"The calculator app\",\"app\":{\"android\":\"org.example.calc\"}}");
+        Readme.update(new Main(project, null), false);
+        String readme = Files.readString(project.resolve("README.md"));
+
+        assertThat(readme).contains("### Before you run: a device with the app").contains("`adb devices`").contains("ANDROID_HOME")
+                .contains("`org.example.calc` (android)").contains("start the app from cold".replace("start the", "starts the"));
+        assertThat(readme).as("the run commands still come first").containsSubsequence("## Run the tests", "./gradlew test", "### Before you run");
+
+        Files.writeString(project.resolve("context/environments/default.yaml"), "name: default\nguard: {allowHosts: [shop.test]}\ntargets:\n  shop: {type: api, description: Shop, baseUrl: \"https://shop.test\"}\n");
+        Readme.update(new Main(project, null), false);
+        assertThat(Files.readString(project.resolve("README.md"))).as("a web-only repo says nothing about devices").doesNotContain("Before you run");
+    }
 }

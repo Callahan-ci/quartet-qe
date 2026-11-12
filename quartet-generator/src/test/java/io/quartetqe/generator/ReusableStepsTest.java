@@ -179,4 +179,17 @@ class ReusableStepsTest {
         bad.put("steps/Orders.java", tooShort);
         assertThat(blockingFor(bad)).contains("OBS-WHY");
     }
+
+    @Test
+    void anAppWithOnlyOneTargetNeedsASkeletonThatCrossesOneLayerNotTwo() {
+        StaticRules oneTarget = new StaticRules(Principles.load(CONTEXT), new ContextRepo(CONTEXT), Set.of("orders-api"));
+        Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("T.java", testClass("T", "ActResult o = new Orders(agent).placeOrder(); assertThat(o.get(\"status\")).isEqualTo(\"RESERVED\");"));
+        sources.put("steps/Orders.java", STEPS.replace("on(\"orders-db\")", "on(\"orders-api\")"));
+
+        assertThat(oneTarget.check(sources, story).stream().filter(Finding::blocking).map(Finding::rule).toList())
+                .as("a single-target product cannot be asked to cross two layers").doesNotContain("PROD-WALKING-SKELETON");
+        assertThat(rulesFor(Map.of("T.java", testClass("T", "assertThat(1).isEqualTo(1);"), "steps/Orders.java", STEPS)))
+                .as("no acts at all still fails the skeleton rule when there are several targets").contains("PROD-WALKING-SKELETON");
+    }
 }

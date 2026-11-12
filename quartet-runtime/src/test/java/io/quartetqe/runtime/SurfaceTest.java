@@ -158,4 +158,54 @@ class SurfaceTest {
         assertThat(tools.get("screen_find_text").handler().call(Json.obj().put("pattern", "ORD-[0-9]+")).path("text").asText()).isEqualTo("ORD-77");
         assertThat(tools.get("screen_find_text").handler().call(Json.obj().put("pattern", "NOPE").put("timeoutMs", 10)).path("found").asBoolean()).isFalse();
     }
+
+    @Test
+    void anAppIsStartedFromColdByItsRealLauncherActivity() throws Exception {
+        List<String> commands = new ArrayList<>();
+        AndroidBridge bridge = new AndroidBridge("emulator-5554", command -> {
+            commands.add(String.join(" ", command.subList(3, command.size())));
+            if (command.contains("resolve-activity")) return "priority=0 preferredOrder=0 match=0x108000\norg.fossify.math/.activities.SplashActivity.Green\n";
+            return "Status: ok\n";
+        });
+
+        bridge.launchApp("org.fossify.math");
+
+        assertThat(commands).containsExactly("shell am force-stop org.fossify.math",
+                "shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER org.fossify.math",
+                "shell am start -W -n org.fossify.math/.activities.SplashActivity.Green");
+    }
+
+    @Test
+    void anAppWithNoLauncherActivityFallsBackAndARefusedStartSaysWhatToDo() throws Exception {
+        List<String> commands = new ArrayList<>();
+        AndroidBridge fallback = new AndroidBridge("emulator-5554", command -> {
+            commands.add(String.join(" ", command.subList(3, command.size())));
+            return command.contains("resolve-activity") ? "No activity found\n" : "";
+        });
+        fallback.launchApp("x.y");
+        assertThat(commands.get(commands.size() - 1)).isEqualTo("shell monkey -p x.y -c android.intent.category.LAUNCHER 1");
+
+        AndroidBridge refused = new AndroidBridge("emulator-5554", command ->
+                command.contains("resolve-activity") ? "x.y/.Main\n" : command.contains("start") ? "Error: Activity class {x.y/x.y.Main} does not exist.\n" : "");
+        assertThatThrownBy(() -> refused.launchApp("x.y")).hasMessageContaining("Is the app installed").hasMessageContaining("does not exist");
+
+        assertThat(AndroidBridge.launcherComponent("noise\nfoo.bar/.Main\n")).isEqualTo("foo.bar/.Main");
+        assertThat(AndroidBridge.launcherComponent("No activity found")).isNull();
+    }
+
+    @Test
+    void aValueBetweenKnownWordsCanBeReadOnItsOwnWithACaptureGroup() throws Exception {
+        FakeBridge bridge = new FakeBridge();
+        bridge.elements = List.of(new Surface.Element("button", "History", "", 0, 1, 1, 1, 1), new Surface.Element("text", "15", "", 0, 1, 1, 1, 1),
+                new Surface.Element("button", "%", "", 0, 1, 1, 1, 1), new Surface.Element("button", "7", "", 0, 1, 1, 1, 1));
+        Tool find = tools(new NativeSurface(bridge, null, null)).get("screen_find_text");
+
+        var whole = find.handler().call(Json.parse("{\"pattern\":\"History \\\\S+ %\"}"));
+        assertThat(whole.path("text").asText()).isEqualTo("History 15 %");
+
+        var captured = find.handler().call(Json.parse("{\"pattern\":\"History (\\\\S+) %\"}"));
+        assertThat(captured.path("text").asText()).isEqualTo("15");
+        assertThat(captured.path("matched").asText()).isEqualTo("History 15 %");
+        assertThat(captured.path("replayCheck").asText()).isEqualTo("found:true");
+    }
 }

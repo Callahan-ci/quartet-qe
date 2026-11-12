@@ -104,9 +104,33 @@ final class AndroidBridge implements NativeSurface.Bridge {
         return (int) WEB_TEXT.matcher(xml.substring(web)).results().count();
     }
 
+    private static final Pattern COMPONENT = Pattern.compile("(?m)^([A-Za-z0-9_.]+/[A-Za-z0-9_.$]+)\\s*$");
+
+    /**
+     * Starts the app the way a user does: from cold, so no test inherits the screen the last one left, using the
+     * launcher component Android itself reports. Some apps start through an alias that "monkey" silently ignores.
+     */
     @Override
     public void launchApp(String appId) throws Exception {
-        run("shell", "monkey", "-p", appId, "-c", "android.intent.category.LAUNCHER", "1");
+        run("shell", "am", "force-stop", appId);
+        String component = launcherComponent(run("shell", "cmd", "package", "resolve-activity", "--brief", "-c", "android.intent.category.LAUNCHER", appId));
+        if (component == null) {
+            run("shell", "monkey", "-p", appId, "-c", "android.intent.category.LAUNCHER", "1");
+            return;
+        }
+        String started = run("shell", "am", "start", "-W", "-n", component);
+        if (started.contains("Error:") || started.contains("Exception")) {
+            throw new IllegalStateException("Android could not start " + appId + " (" + component + "). Is the app installed on this device? "
+                    + "Install it with adb install, then try again.\n" + started.strip());
+        }
+    }
+
+    /** The "package/activity" line from resolve-activity, or null when the app has no launcher activity. */
+    static String launcherComponent(String output) {
+        java.util.regex.Matcher matcher = COMPONENT.matcher(output == null ? "" : output);
+        String found = null;
+        while (matcher.find()) found = matcher.group(1);
+        return found;
     }
 
     @Override

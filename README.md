@@ -194,7 +194,7 @@ assertThat(placed.get("status")).isEqualTo("RESERVED");
 
 - **One place to fix.** A renamed button is repaired in one step, not in every test that uses it.
 - **One recording per step, not per test.** A recorded step is stored once (in `recordings/_shared`) and replayed by every test that uses it. Older per-test recordings still work. The same step on another device (iPhone, Android) is recorded separately.
-- **Variables.** Write a step's instruction with `{{variables}}` and `with(...)`, so one recording serves every value, such as every book or every customer.
+- **Variables.** Write a step's instruction with `{{variables}}` and `with(...)` when a value is passed as it is into one field or request, such as a customer id or a quantity, so one recording serves every value. When the value changes which steps happen (which keys to tap, which screens to open), write it into the instruction instead, so each gets its own recording.
 - **The rules see through steps.** A test is judged on everything it does, including the steps it calls, but a call to a step counts as one step however much it does. A problem inside a step is reported at the step. A step may take its reason as a parameter, `why(reason)`.
 - **Repetition is flagged.** The same act written in two test classes gets a warning to move it into a steps class.
 - **The AI uses them.** `list_steps` shows what exists and what each step does, `write_steps` adds one, and the AI is told to reuse before writing. They are committed in pull requests with the tests.

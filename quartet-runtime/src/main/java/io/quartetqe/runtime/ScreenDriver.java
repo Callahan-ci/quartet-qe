@@ -107,7 +107,7 @@ final class ScreenDriver implements Driver {
                     return ok();
                 }),
                 Tool.of("screen_read", "Read one control: its name, value and link address. Reports found=false if it never appears.", CONTROL, this::read),
-                Tool.of("screen_find_text", "Wait for visible text matching a regular expression and return the matched text.", """
+                Tool.of("screen_find_text", "Wait for visible text matching a regular expression and return it as text. If the pattern has a capture group, text is just that group, so you can read an unlabelled value that sits between known words, such as a calculator result shown before the % key. The whole match is returned as matched.", """
                     {"type":"object","required":["pattern"],"properties":{"pattern":{"type":"string"},"timeoutMs":{"type":"integer"}}}""", this::findText),
                 Tool.of("screen_count", "Count controls on the screen by role and/or part of their name, for example how many links or how many buttons named Add to basket. Use this instead of counting by eye.", """
                     {"type":"object","properties":{"role":{"type":"string"},"nameContains":{"type":"string","description":"Case-insensitive part of the name"}}}""", this::count),
@@ -169,7 +169,11 @@ final class ScreenDriver implements Driver {
         int attempt = 0;
         while (true) {
             Matcher matcher = pattern.matcher(surface.observe().text());
-            if (matcher.find()) return Driver.check(Json.obj().put("found", true).put("text", matcher.group()), "found:true");
+            if (matcher.find()) {
+                // With a capture group the text is just the group, so a value between two known words can be read on its own.
+                String text = matcher.groupCount() >= 1 && matcher.group(1) != null ? matcher.group(1) : matcher.group();
+                return Driver.check(Json.obj().put("found", true).put("text", text).put("matched", matcher.group()), "found:true");
+            }
             if (System.currentTimeMillis() >= deadline) return Driver.check(Json.obj().put("found", false), "found:false");
             pause(attempt++);
         }

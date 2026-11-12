@@ -107,7 +107,9 @@ public final class TestGenerator {
             - Call list_steps first. Reuse a step that exists. A step is a method in a class in package steps, such as new Orders(agent).placeOrder("SKU-1001", 2).
             - A journey that more than one test uses, or likely will (opening the site, signing in, placing an order, reading an order), is a step. Write it once with
               write_steps, as a class with a TestAgent constructor and methods that return ActResult, and call it from every test. Never copy the same act into two tests.
-            - Use {{variables}} with with(...) in a step's instruction so one recording serves every value, for example "Place an order for {{quantity}} units of {{sku}}".
+            - Use {{variables}} with with(...) when a value is passed as it is into one field or request (an id, a name, a quantity), so one recording serves every value:
+              "Place an order for {{quantity}} units of {{sku}}". Do NOT use a variable when the value changes which steps happen, such as which keys to tap on a calculator
+              or which screens to visit: those need the value written into the instruction, so each gets its own recording.
             - Name a step class after an area of the product (Catalog, Orders, Account), not after a story. Keep each step to one outcome, and keep a test to a handful of lines:
               steps to get into the state, one act or step under test, and the assertions.
             - A steps class holds steps only. It has no @Test, no @Story and no assertions about what the story expects: tests decide, steps do.
