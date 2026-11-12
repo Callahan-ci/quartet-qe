@@ -8,6 +8,11 @@ java { toolchain { languageVersion.set(JavaLanguageVersion.of(21)) } }
 
 val quartetCli: Configuration by configurations.creating
 
+// The environment these tests run against is named in quartet.yaml, so plain ./gradlew test and Quartet agree.
+val configuredEnvironment: String = file("quartet.yaml").takeIf { it.exists() }?.readLines()
+    ?.firstOrNull { it.startsWith("environment:") }?.substringAfter(":")?.trim()
+    ?: "context/environments/default.yaml"
+
 dependencies {
     testImplementation("io.quartetqe:quartet-runtime:0.1.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -17,8 +22,13 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
     maxParallelForks = 1
-    environment("QUARTET_ENV", System.getenv("QUARTET_ENV") ?: "$projectDir/context/environments/default.yaml")
-    testLogging { events("passed", "failed", "skipped") }
+    environment("QUARTET_ENV", System.getenv("QUARTET_ENV") ?: "$projectDir/$configuredEnvironment")
+    testLogging {
+        events("passed", "failed", "skipped")
+        showExceptions = true
+        showCauses = true
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.SHORT
+    }
     doFirst { delete(layout.buildDirectory.dir("quartet-report")) }
 }
 

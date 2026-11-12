@@ -451,4 +451,29 @@ class ChatSessionTest {
         assertThat(saved.path("tests_repo").asText()).endsWith("/delta-widgets-tests").doesNotContain("tests-tests");
         assertThat(saved.path("product").asText()).isEqualTo("Delta Widgets Tests");
     }
+
+    @Test
+    void aSitesEnvironmentIsRememberedByTheRepoSoAPlainGradleTestFindsItsTargets() throws Exception {
+        assertThat(Files.readString(project.resolve("quartet.yaml"))).contains("environment: context/environments/demo.yaml");
+
+        call("quartet_start", SITE);
+
+        assertThat(Files.readString(project.resolve("quartet.yaml")))
+                .contains("environment: context/environments/example-org.yaml").doesNotContain("demo.yaml").contains("tests:");
+        assertThat(Files.readString(project.resolve("quartet.yaml")).lines().filter(l -> l.startsWith("environment:")).count()).isEqualTo(1);
+    }
+
+    @Test
+    void theFrameworkFoldersOwnDemoEnvironmentIsNeverRepointedBySiteWork() throws Exception {
+        Files.delete(project.resolve(SetupChoices.FILE));
+        becomeTheFramework();
+        String before = Files.readString(project.resolve("quartet.yaml"));
+        Path created = project.resolveSibling("env-books-tests");
+        call("quartet_setup", "{\"name\":\"Env Books\",\"path\":" + Json.str(created.toString()) + "}");
+
+        call("quartet_start", SITE);
+
+        assertThat(Files.readString(project.resolve("quartet.yaml"))).as("the demo is untouched").isEqualTo(before);
+        assertThat(Files.readString(created.resolve("quartet.yaml"))).contains("environment: context/environments/example-org.yaml");
+    }
 }

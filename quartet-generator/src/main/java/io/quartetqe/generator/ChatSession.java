@@ -323,6 +323,8 @@ final class ChatSession {
         if (!site.isBlank()) {
             Path contextDir = main.root.resolve(main.settings.path("context").asText("context"));
             siteEnvironment = SiteEnvironment.ensure(main.root, contextDir, site);
+            // In a tests repo the repo itself remembers it. The framework folder's demo environment is left alone.
+            if (!isFramework(main.root)) SiteEnvironment.select(main.root, siteEnvironment);
         }
         main = new Main(main.root, siteEnvironment); // read the project again, so nothing needs a restart
         String reference = args.path("story").asText("").strip();

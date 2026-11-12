@@ -15,6 +15,20 @@ import java.util.Set;
 final class SiteEnvironment {
     private SiteEnvironment() {}
 
+    /**
+     * Makes a tests repo use this environment from now on, by naming it in quartet.yaml. The build reads the same
+     * setting, so a plain ./gradlew test finds the targets the tests were written against.
+     */
+    static void select(Path root, String environment) throws IOException {
+        Path settings = root.resolve("quartet.yaml");
+        if (!Files.isRegularFile(settings)) return;
+        String text = Files.readString(settings);
+        String updated = text.matches("(?s).*(^|\\n)environment:.*")
+                ? text.replaceFirst("(?m)^environment:.*$", java.util.regex.Matcher.quoteReplacement("environment: " + environment))
+                : text + (text.endsWith("\n") ? "" : "\n") + "environment: " + environment + "\n";
+        if (!updated.equals(text)) Files.writeString(settings, updated);
+    }
+
     /** Returns the environment file path relative to the project root, creating it if it does not exist. */
     static String ensure(Path root, Path contextDir, String address) throws IOException {
         URI uri;
