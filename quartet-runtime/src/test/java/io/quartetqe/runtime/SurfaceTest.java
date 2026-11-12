@@ -7,6 +7,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.quartetqe.core.Json;
 import io.quartetqe.core.Tool;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -207,5 +208,30 @@ class SurfaceTest {
         assertThat(captured.path("text").asText()).isEqualTo("15");
         assertThat(captured.path("matched").asText()).isEqualTo("History 15 %");
         assertThat(captured.path("replayCheck").asText()).isEqualTo("found:true");
+    }
+
+    @Test
+    void adbIsFoundInTheStandardSdkFoldersSoNobodyHasToSetAnything() {
+        Path home = Path.of("/home/me");
+        java.util.function.Predicate<Path> onlyMacDefault = p -> p.equals(home.resolve("Library/Android/sdk/platform-tools/adb"));
+
+        assertThat(AndroidBridge.locateAdb(Map.of(), home, onlyMacDefault)).isEqualTo("/home/me/Library/Android/sdk/platform-tools/adb");
+        assertThat(AndroidBridge.locateAdb(Map.of("ANDROID_HOME", "/custom"), home, p -> p.toString().equals("/custom/platform-tools/adb") || onlyMacDefault.test(p)))
+                .as("a folder the user named wins").isEqualTo("/custom/platform-tools/adb");
+        assertThat(AndroidBridge.locateAdb(Map.of("ANDROID_SDK_ROOT", "/legacy"), home, p -> p.toString().equals("/legacy/platform-tools/adb")))
+                .isEqualTo("/legacy/platform-tools/adb");
+        assertThat(AndroidBridge.locateAdb(Map.of(), home, p -> p.equals(home.resolve("Android/Sdk/platform-tools/adb")))).isEqualTo("/home/me/Android/Sdk/platform-tools/adb");
+        assertThat(AndroidBridge.locateAdb(Map.of(), home, p -> false)).as("otherwise whatever is on the PATH").isEqualTo("adb");
+    }
+
+    @Test
+    void aMachineThatIsNotReadyIsExplainedWithWhatToDoInsteadOfBeingCalledATargetProblem() {
+        assertThat(AndroidBridge.explain("error: no devices/emulators found")).contains("emulator -list-avds").contains("adb devices");
+        assertThat(AndroidBridge.explain("error: device offline")).contains("offline");
+        assertThat(AndroidBridge.explain("error: device unauthorized.")).contains("USB debugging");
+        assertThat(AndroidBridge.explain("error: more than one device/emulator")).contains("serial:");
+        assertThat(AndroidBridge.explain("error: device 'emulator-9999' not found")).contains("serial:");
+        assertThat(AndroidBridge.explain("Error: Activity class does not exist")).as("an app problem is not a machine problem").isNull();
+        assertThat(AndroidBridge.adbMissingMessage()).contains("ANDROID_HOME").contains("PATH").contains("Looked in");
     }
 }

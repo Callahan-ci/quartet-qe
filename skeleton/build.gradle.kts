@@ -44,9 +44,11 @@ tasks.test {
     environment("QUARTET_ENV", System.getenv("QUARTET_ENV") ?: "$projectDir/$configuredEnvironment")
     testLogging {
         events("passed", "failed", "skipped")
+        // The message says why a test failed (for example that no Android device is connected). The stack trace is noise.
         showExceptions = true
         showCauses = true
-        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.SHORT
+        showStackTraces = false
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
     doFirst { delete(layout.buildDirectory.dir("quartet-report")) }
 }

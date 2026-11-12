@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -58,18 +59,67 @@ final class AndroidBridge implements NativeSurface.Bridge {
     }
 
     private static String adbPath() {
-        String home = System.getenv("ANDROID_HOME");
-        if (home != null && Files.isExecutable(Path.of(home, "platform-tools", "adb"))) return Path.of(home, "platform-tools", "adb").toString();
+        return locateAdb(System.getenv(), Path.of(System.getProperty("user.home")), Files::isExecutable);
+    }
+
+    /** Where an Android SDK usually lives, so adb is found without anyone setting ANDROID_HOME. */
+    static List<Path> sdkCandidates(Map<String, String> env, Path home) {
+        List<Path> candidates = new ArrayList<>();
+        for (String name : List.of("ANDROID_HOME", "ANDROID_SDK_ROOT")) {
+            if (env.get(name) != null && !env.get(name).isBlank()) candidates.add(Path.of(env.get(name)));
+        }
+        candidates.add(home.resolve("Library/Android/sdk"));
+        candidates.add(home.resolve("Android/Sdk"));
+        if (env.get("LOCALAPPDATA") != null) candidates.add(Path.of(env.get("LOCALAPPDATA"), "Android", "Sdk"));
+        return candidates;
+    }
+
+    static String locateAdb(Map<String, String> env, Path home, java.util.function.Predicate<Path> executable) {
+        for (Path sdk : sdkCandidates(env, home)) {
+            for (String name : List.of("adb", "adb.exe")) {
+                if (executable.test(sdk.resolve("platform-tools").resolve(name))) return sdk.resolve("platform-tools").resolve(name).toString();
+            }
+        }
         return "adb";
     }
 
-    private static String execute(List<String> command) throws IOException, InterruptedException {
-        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
-        byte[] output = process.getInputStream().readAllBytes();
-        if (!process.waitFor(60, TimeUnit.SECONDS) || process.exitValue() != 0) {
-            throw new IllegalStateException("adb failed: " + new String(output, StandardCharsets.UTF_8));
+    /** What to tell a person when an adb call failed because of the machine, or null when it is something else. */
+    static String explain(String output) {
+        String text = output == null ? "" : output.toLowerCase();
+        if (text.contains("no devices/emulators found") || text.contains("no devices found")) {
+            return "No Android device is connected. Start an emulator (list yours with: emulator -list-avds, start one with: emulator -avd NAME) "
+                    + "or plug in a phone with USB debugging on, then check that `adb devices` lists it.";
         }
-        return new String(output, StandardCharsets.UTF_8);
+        if (text.contains("device offline")) return "The Android device is offline. Wait for it to finish starting, or restart it, then check `adb devices`.";
+        if (text.contains("unauthorized")) return "The Android device has not allowed this computer. Accept the USB debugging prompt on the device, then check `adb devices`.";
+        if (text.contains("more than one device")) return "More than one Android device is connected. Name the one to use with serial: in the device's settings in the environment file.";
+        if (text.contains("device '") && text.contains("not found")) return "The Android device named in serial: is not connected. Check `adb devices` for its exact name.";
+        return null;
+    }
+
+    static String adbMissingMessage() {
+        return "adb was not found. Install the Android SDK platform tools (Android Studio includes them) and either set ANDROID_HOME to the SDK folder "
+                + "or put adb on your PATH. Looked in: " + sdkCandidates(System.getenv(), Path.of(System.getProperty("user.home"))) + " and the PATH.";
+    }
+
+    private static String execute(List<String> command) throws IOException, InterruptedException {
+        Process process;
+        try {
+            process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        } catch (IOException e) {
+            throw new EnvironmentProblem(adbMissingMessage());
+        }
+        byte[] output = process.getInputStream().readAllBytes();
+        String text = new String(output, StandardCharsets.UTF_8);
+        if (!process.waitFor(60, TimeUnit.SECONDS) || process.exitValue() != 0) {
+            String explained = explain(text);
+            if (explained != null) throw new EnvironmentProblem(explained);
+            // adb prints its own arguments back on a failure, which hides the reason. Keep only the lines that explain it.
+            String reason = text.lines().filter(line -> line.startsWith("error") || line.startsWith("adb:") || line.toLowerCase().contains("exception")).limit(3)
+                    .reduce((a, b) -> a + "\n" + b).orElse(text.strip().lines().limit(3).reduce((a, b) -> a + "\n" + b).orElse(""));
+            throw new IllegalStateException("adb failed: " + reason);
+        }
+        return text;
     }
 
     private String run(String... arguments) throws Exception {

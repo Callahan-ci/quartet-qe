@@ -140,7 +140,7 @@ final class Readme {
         if (!android && !ios) return "";
         StringBuilder out = new StringBuilder("\n### Before you run: a device with the app\n\n");
         out.append("These tests drive a native app, so they need a device ready:\n\n");
-        if (android) out.append("1. Start an Android emulator or connect a phone, so that `adb devices` lists it. Set `ANDROID_HOME` to your Android SDK.\n");
+        if (android) out.append("1. Start an Android emulator or connect a phone, so that `adb devices` lists it. Quartet finds the Android SDK in its usual place; set `ANDROID_HOME` only if yours is elsewhere.\n");
         if (ios) out.append("1. Start an iOS simulator with the Quartet runner (see Quartet QE's `native/ios`).\n");
         out.append("2. Install the app").append(apps.isEmpty() ? "" : ": " + String.join(", ", apps)).append(". For Android, `adb install app.apk`.\n");
         out.append("3. Run the tests as above. Each test starts the app from cold, so tests do not depend on each other.\n");

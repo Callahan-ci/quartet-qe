@@ -235,6 +235,9 @@ public final class TestAgent implements AutoCloseable {
             JsonNode result;
             try {
                 result = tool.handler().call(Binder.resolve(step.path("args"), scope));
+            } catch (EnvironmentProblem e) {
+                // The machine is not ready. Re-recording cannot fix that, so say what is wrong and stop.
+                throw new AgentActException("Cannot run: " + e.getMessage() + "\n(while replaying step #" + (i + 1) + " of: " + spec.instruction() + ")", e);
             } catch (Exception e) {
                 return new Replay(results, total, "target-not-found", false, scope, i + 1);
             }
