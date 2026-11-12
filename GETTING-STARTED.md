@@ -87,6 +87,10 @@ Open the tests repo in a chat tool that supports MCP, such as Claude Code, Claud
 
 > Write tests for stories/MY-STORY.md using Quartet QE.
 
+To test a public website, say "Test my site https://www.example.com using Quartet QE" and describe what matters. The AI drafts the story with you, and Quartet saves it and creates the environment for that site (desktop, iPhone and Android phone, allowing only that site), so there is nothing to set up or restart.
+
+For your own system, it must be running first.
+
 The system your tests talk to must be running first. Quartet checks that before it runs the tests, and the AI will tell you what to start if something is down. (For the demo shop, run `./demo-shop.sh` in a terminal and leave it open.)
 
 The AI follows `AGENTS.md`: it starts the story, reads your context, writes and validates the tests, hands them over, and answers the review and recording steps Quartet asks for. You get the review page at the end. The first start builds the tool, so allow a minute.

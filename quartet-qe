@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Builds on first use, then runs the agent from the repo root. Build output goes to stderr so "mcp" keeps stdout clean.
+# Builds on first use and whenever the source has changed, then runs the agent from the repo root.
+# Build output goes to stderr so "mcp" keeps stdout clean.
 cd "$(dirname "$0")"
 BIN=quartet-generator/build/install/quartet-qe/bin/quartet-qe
-[ -x "$BIN" ] || ./gradlew -q :quartet-generator:installDist >&2 || exit 1
+if [ ! -x "$BIN" ] || [ -n "$(find quartet-core quartet-runtime quartet-generator -path '*/src/*' -type f -newer "$BIN" -print -quit 2>/dev/null)" ]; then
+  ./gradlew -q :quartet-generator:installDist >&2 || exit 1
+fi
 exec "$BIN" "$@"

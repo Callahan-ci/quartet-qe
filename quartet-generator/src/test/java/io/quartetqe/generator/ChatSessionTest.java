@@ -181,4 +181,65 @@ class ChatSessionTest {
         assertThatThrownBy(() -> call("quartet_finish", "{\"traceability\":[]}"))
                 .hasMessageContaining("not reachable").hasMessageContaining("demo-shop.sh").hasMessageContaining("run=false");
     }
+
+    private static final String SITE_STORY = """
+        # EX-1: A visitor can find the install command
+
+        As a visitor I want to see how to install the tool, so that I can try it.
+
+        ## Acceptance criteria
+
+        - AC1: The home page shows a heading.
+        - AC2: A page that does not exist tells the visitor it was not found.
+        """;
+
+    @Test
+    void aWebAddressAndAStoryAreAllItTakesToStartTestingASite() throws Exception {
+        JsonNode start = call("quartet_start", Json.obj().put("site", "https://www.example.org").put("story_text", SITE_STORY).toString());
+
+        assertThat(start.path("story").path("id").asText()).isEqualTo("EX-1");
+        assertThat(start.path("story").path("acceptance_criteria").size()).isEqualTo(2);
+        assertThat(start.path("targets").toString()).contains("site-web").contains("site-http").doesNotContain("orders-api");
+        assertThat(start.path("rules_for_writing_tests").asText()).contains("package generated.ex1;");
+        assertThat(project.resolve("stories/EX-1.md")).exists();
+
+        String environment = Files.readString(project.resolve("context/environments/example-org.yaml"));
+        assertThat(environment).contains("allowHosts: [www.example.org, example.org]").contains("iphone").contains("android-phone");
+        assertThat(environment).doesNotContain("localhost");
+    }
+
+    @Test
+    void theSiteStaysSelectedForLaterStoriesAndOtherSettingsAreNotTouched() throws Exception {
+        call("quartet_start", Json.obj().put("site", "example.org").put("story_text", SITE_STORY).toString());
+        Files.writeString(project.resolve("context/environments/example-org.yaml"),
+                Files.readString(project.resolve("context/environments/example-org.yaml")).replace("name: example.org", "name: edited by the team"));
+
+        JsonNode again = call("quartet_start", Json.obj().put("site", "example.org").put("story_text", SITE_STORY).toString());
+
+        assertThat(again.path("targets").toString()).contains("site-web");
+        assertThat(Files.readString(project.resolve("context/environments/example-org.yaml"))).contains("edited by the team");
+        assertThat(Files.readString(project.resolve("context/environments/demo.yaml"))).contains("orders-api");
+    }
+
+    @Test
+    void editsToTheEnvironmentAreSeenOnTheNextStartWithoutRestartingAnything() throws Exception {
+        assertThat(call("quartet_start", story("SHOP-142")).path("targets").toString()).doesNotContain("extra-api");
+
+        Path environment = project.resolve("context/environments/demo.yaml");
+        Files.writeString(environment, Files.readString(environment)
+                + "  extra-api:\n    type: api\n    description: Added while the server was running.\n    baseUrl: \"http://localhost:1\"\n");
+
+        assertThat(call("quartet_start", story("SHOP-142")).path("targets").toString()).contains("extra-api");
+    }
+
+    @Test
+    void aStoryWithoutAnIdGetsOneAndBadAddressesAreRefusedWithAClearMessage() throws Exception {
+        JsonNode start = call("quartet_start", Json.obj().put("site", "https://www.example.org")
+                .put("story_text", "As a visitor I want to read the pricing, so that I can budget.\n\n## Acceptance criteria\n\n- AC1: The page shows a price.\n").toString());
+        assertThat(start.path("story").path("id").asText()).startsWith("SITE-");
+
+        assertThatThrownBy(() -> call("quartet_start", Json.obj().put("site", "ftp://example.org").put("story_text", SITE_STORY).toString()))
+                .hasMessageContaining("not a web address");
+        assertThatThrownBy(() -> call("quartet_start", "{}")).hasMessageContaining("story_text");
+    }
 }
