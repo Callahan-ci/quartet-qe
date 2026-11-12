@@ -87,6 +87,8 @@ Open the tests repo in a chat tool that supports MCP, such as Claude Code, Claud
 
 > Write tests for stories/MY-STORY.md using Quartet QE.
 
+The system your tests talk to must be running first. Quartet checks that before it runs the tests, and the AI will tell you what to start if something is down. (For the demo shop, run `./demo-shop.sh` in a terminal and leave it open.)
+
 The AI follows `AGENTS.md`: it starts the story, reads your context, writes and validates the tests, hands them over, and answers the review and recording steps Quartet asks for. You get the review page at the end. The first start builds the tool, so allow a minute.
 
 If your chat tool does not read `.mcp.json`, add a server named `quartet-qe` that runs `./quartet-qe mcp` from the repo root.

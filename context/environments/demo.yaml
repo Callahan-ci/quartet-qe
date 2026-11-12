@@ -1,4 +1,5 @@
 name: demo
+howToStart: "Ask the user to run ./demo-shop.sh in a terminal and leave it running, then call quartet_check_environment. It starts the sample shop, Kafka, PostgreSQL and MongoDB in-process on this machine. It needs no Docker."
 guard:
   production: false
   allowHosts: [localhost, 127.0.0.1]

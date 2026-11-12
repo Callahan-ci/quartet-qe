@@ -144,7 +144,7 @@ class ChatSessionTest {
         readTheContext();
         call("write_test", "{\"file_name\":\"CheckoutReservesStockTest.java\",\"content\":" + Json.str(finalTest()) + "}");
         call("validate_tests", "{}");
-        call("quartet_finish", "{\"traceability\":[]}");
+        call("quartet_finish", "{\"traceability\":[],\"run\":false}");
 
         JsonNode step = call("quartet_next_step", "{\"wait_seconds\":20}");
         String principle = Json.parseYaml(Files.readString(project.resolve("context/engineering-principles/principles.yaml")))
@@ -164,5 +164,21 @@ class ChatSessionTest {
         Files.writeString(stale, "{}");
         new ChatSession(new Main(project, null), project.resolve("build/quartet-host"));
         assertThat(stale).doesNotExist();
+    }
+
+    @Test
+    void runningTestsIsRefusedWithAClearFixWhenTheSystemUnderTestIsNotUp() throws Exception {
+        call("quartet_start", story("SHOP-142"));
+        readTheContext();
+        call("write_test", "{\"file_name\":\"CheckoutReservesStockTest.java\",\"content\":" + Json.str(finalTest()) + "}");
+        call("validate_tests", "{}");
+
+        JsonNode status = call("quartet_check_environment", "{}");
+        assertThat(status.path("all_reachable").asBoolean()).isFalse();
+        assertThat(status.path("not_reachable").toString()).contains("orders-api");
+        assertThat(status.path("how_to_start").asText()).contains("demo-shop.sh");
+
+        assertThatThrownBy(() -> call("quartet_finish", "{\"traceability\":[]}"))
+                .hasMessageContaining("not reachable").hasMessageContaining("demo-shop.sh").hasMessageContaining("run=false");
     }
 }

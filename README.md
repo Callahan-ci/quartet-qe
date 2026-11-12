@@ -168,9 +168,10 @@ You do not need an API key. Quartet QE is also an [MCP](https://modelcontextprot
    ```
 
    The first start builds the tool, which takes a minute. Approve the server when your tool asks.
-2. Ask: **"Write tests for stories/SHOP-142.md using Quartet QE."** `AGENTS.md` tells the AI the order of work.
-3. The AI reads your context, writes the tests, and hands them over. Quartet checks them, runs an independent review, runs the tests, and writes the review page.
-4. You review `reports/<story>/review.md`. After that the tests replay with no AI at all.
+2. To try the demo, start the sample shop in a terminal and leave it open: `./demo-shop.sh` (no Docker needed). For your own system, it must be running and reachable too. Quartet checks this before running tests and says what to start.
+3. Ask: **"Write tests for stories/SHOP-142.md using Quartet QE."** `AGENTS.md` tells the AI the order of work.
+4. The AI reads your context, writes the tests, and hands them over. Quartet checks them, runs an independent review, runs the tests, and writes the review page.
+5. You review `reports/<story>/review.md`. After that the tests replay with no AI at all.
 
 You can see the whole path with no AI and no key. `./demo-chat.sh` starts the real server, a stand-in chat AI and the real sample system. The stand-in answers each model step from a script, so it shows the plumbing, not AI judgement.
 

@@ -95,6 +95,8 @@ final class ChatSession {
             current();
             return record("validate_tests", args, TestGenerator.validation(rules.check(files, story)));
         }));
+        tools.add(Tool.of("quartet_check_environment", "Check that every system the tests talk to is reachable before running them. Says how to start the system if it is not.", EMPTY,
+                args -> environmentStatus()));
         tools.add(Tool.of("quartet_finish", "Hand over the tests. Quartet checks them, then starts an independent review and, if it passes, runs the tests. Continue with quartet_next_step.", """
             {"type":"object","required":["traceability"],"properties":{
               "traceability":{"type":"array","items":{"type":"object","required":["ac","test","targets"],"properties":{
@@ -173,11 +175,38 @@ final class ChatSession {
         return out;
     }
 
-    private JsonNode finish(JsonNode args) {
+    /** Which systems the tests need, whether they answer, and how to start them. */
+    private JsonNode environmentStatus() throws IOException {
+        List<String> down = Preflight.unreachable(main.environment.targets(), 1500);
+        ObjectNode out = Json.obj().put("environment", main.environment.name());
+        out.put("all_reachable", down.isEmpty());
+        ArrayNode list = out.putArray("not_reachable");
+        down.forEach(list::add);
+        if (!down.isEmpty()) out.put("how_to_start", howToStart());
+        return out;
+    }
+
+    private String howToStart() throws IOException {
+        Path file = main.root.resolve(main.environmentPath);
+        String hint = Files.isRegularFile(file) ? Json.parseYaml(Files.readString(file)).path("howToStart").asText("") : "";
+        return hint.isBlank()
+                ? "Start the system under test, or fix its address in " + main.environmentPath + ". Ask the user if you do not know how."
+                : hint;
+    }
+
+    private JsonNode finish(JsonNode args) throws IOException {
         current();
         if (job != null && job.isAlive()) throw new IllegalStateException("A review or run is already in progress. Call quartet_next_step.");
         String problem = TestGenerator.finishProblem(args, story, files, steps, rules, main.principles, main.context);
         if (problem != null) throw new IllegalStateException(problem);
+        if (args.path("run").asBoolean(true)) {
+            List<String> down = Preflight.unreachable(main.environment.targets(), 1500);
+            if (!down.isEmpty()) {
+                throw new IllegalStateException("Cannot run the tests yet: these systems are not reachable: " + down + ". " + howToStart()
+                        + " Then call quartet_finish again. Do not invent results for systems you cannot reach. "
+                        + "To hand over the tests without running them, call quartet_finish with run=false.");
+            }
+        }
         jobResult = null;
         WorkItem started = story;
         Map<String, String> snapshot = new LinkedHashMap<>(files);

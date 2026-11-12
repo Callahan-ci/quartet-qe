@@ -26,7 +26,7 @@ public final class Main {
     final JsonNode settings;
     final ContextRepo context;
     final Principles principles;
-    private final Environment environment;
+    final Environment environment;
     final Connectors connectors;
     final String environmentPath;
 
