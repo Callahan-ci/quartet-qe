@@ -1,0 +1,27 @@
+{
+  "replayPolicy" : "quartet/1",
+  "instruction" : "Try to order 5 units of SKU-LOW for customer C-7, which exceeds available stock",
+  "why" : "Customers must never be sold items that are out of stock",
+  "model" : "host",
+  "summary" : "The order was rejected for insufficient stock.",
+  "on" : [ "orders-api" ],
+  "steps" : [ {
+    "tool" : "http_request",
+    "check" : "status:409",
+    "args" : {
+      "method" : "POST",
+      "path" : "/api/orders",
+      "body" : {
+        "customerId" : "C-7",
+        "items" : [ {
+          "sku" : "SKU-LOW",
+          "quantity" : 5
+        } ]
+      }
+    }
+  } ],
+  "data" : {
+    "status" : "${steps.0.status}",
+    "code" : "${steps.0.body.code}"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "replayPolicy" : "quartet/1",
+  "instruction" : "Look up order ORD-0000000000, which was never placed",
+  "why" : "A clear not-found answer tells the customer the order number is wrong",
+  "model" : "host",
+  "summary" : "The order was not found.",
+  "on" : [ "orders-api" ],
+  "steps" : [ {
+    "tool" : "http_request",
+    "check" : "status:404",
+    "args" : {
+      "method" : "GET",
+      "path" : "/api/orders/ORD-0000000000"
+    }
+  } ],
+  "data" : {
+    "status" : "${steps.0.status}",
+    "code" : "${steps.0.body.code}"
+  }
+}

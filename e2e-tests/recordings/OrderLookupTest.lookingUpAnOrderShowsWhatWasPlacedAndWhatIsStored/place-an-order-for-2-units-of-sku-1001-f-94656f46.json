@@ -1,0 +1,28 @@
+{
+  "replayPolicy" : "quartet/1",
+  "instruction" : "Place an order for 2 units of SKU-1001 for customer C-42",
+  "why" : "Looking up an order starts from an order the customer has placed",
+  "model" : "host",
+  "summary" : "Order placed and reserved.",
+  "on" : [ "orders-api" ],
+  "steps" : [ {
+    "tool" : "http_request",
+    "check" : "status:201",
+    "args" : {
+      "method" : "POST",
+      "path" : "/api/orders",
+      "body" : {
+        "customerId" : "C-42",
+        "items" : [ {
+          "sku" : "SKU-1001",
+          "quantity" : 2
+        } ]
+      }
+    }
+  } ],
+  "data" : {
+    "orderId" : "${steps.0.body.orderId}",
+    "status" : "${steps.0.body.status}",
+    "total" : "${steps.0.body.total}"
+  }
+}

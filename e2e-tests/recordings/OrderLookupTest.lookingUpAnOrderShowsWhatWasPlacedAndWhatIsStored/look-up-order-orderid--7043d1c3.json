@@ -1,0 +1,22 @@
+{
+  "replayPolicy" : "quartet/1",
+  "instruction" : "Look up order {{orderId}}",
+  "why" : "A customer checks their order without contacting support",
+  "model" : "host",
+  "summary" : "Order found.",
+  "on" : [ "orders-api" ],
+  "steps" : [ {
+    "tool" : "http_request",
+    "check" : "status:200",
+    "args" : {
+      "method" : "GET",
+      "path" : "/api/orders/${vars.orderId}"
+    }
+  } ],
+  "data" : {
+    "orderId" : "${vars.orderId}",
+    "customerId" : "${steps.0.body.customerId}",
+    "status" : "${steps.0.body.status}",
+    "total" : "${steps.0.body.total}"
+  }
+}

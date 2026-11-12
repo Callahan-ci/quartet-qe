@@ -1,0 +1,30 @@
+{
+  "replayPolicy" : "quartet/1",
+  "instruction" : "Place an order for customer C-42 with two lines for SKU-1001: one line of 1 unit and one line of 2 units",
+  "why" : "A basket with several lines must total every line",
+  "model" : "host",
+  "summary" : "Order placed with two lines.",
+  "on" : [ "orders-api" ],
+  "steps" : [ {
+    "tool" : "http_request",
+    "check" : "status:201",
+    "args" : {
+      "method" : "POST",
+      "path" : "/api/orders",
+      "body" : {
+        "customerId" : "C-42",
+        "items" : [ {
+          "sku" : "SKU-1001",
+          "quantity" : 1
+        }, {
+          "sku" : "SKU-1001",
+          "quantity" : 2
+        } ]
+      }
+    }
+  } ],
+  "data" : {
+    "orderId" : "${steps.0.body.orderId}",
+    "total" : "${steps.0.body.total}"
+  }
+}

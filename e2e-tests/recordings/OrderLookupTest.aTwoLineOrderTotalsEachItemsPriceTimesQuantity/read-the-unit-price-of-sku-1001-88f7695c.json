@@ -1,0 +1,21 @@
+{
+  "replayPolicy" : "quartet/1",
+  "instruction" : "Read the unit price of SKU-1001",
+  "why" : "The expected total comes from the catalog, not from the order itself",
+  "model" : "host",
+  "summary" : "Read the price of SKU-1001.",
+  "on" : [ "catalog-db" ],
+  "steps" : [ {
+    "tool" : "mongo_find",
+    "check" : "rows:some",
+    "args" : {
+      "collection" : "products",
+      "filter" : {
+        "sku" : "SKU-1001"
+      }
+    }
+  } ],
+  "data" : {
+    "price" : "${steps.0.rows.0.price}"
+  }
+}
