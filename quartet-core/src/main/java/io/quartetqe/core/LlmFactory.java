@@ -38,6 +38,7 @@ public final class LlmFactory {
 
     public static Llm.Client fromEnv(Map<String, String> env) {
         String provider = blankToNull(env.get("AI_PROVIDER"));
+        if (provider == null && blankToNull(env.get(HostClient.DIR_ENV)) != null) provider = "host";
         if (provider == null) {
             if (blankToNull(env.get("ANTHROPIC_API_KEY")) != null) provider = "anthropic";
             else if (blankToNull(env.get("OPENAI_API_KEY")) != null) provider = "openai";
@@ -61,9 +62,10 @@ public final class LlmFactory {
             case "openai-compatible", "ollama", "local" -> new OpenAiClient(OpenAiClient.Flavor.COMPATIBLE,
                     required(baseUrl, "AI_BASE_URL"), blankToNull(env.get("AI_API_KEY")),
                     required(model, "AI_MODEL"), null, http);
+            case "host", "chat" -> HostClient.fromEnv(env);
             case "scripted" -> new ScriptedClient(Path.of(required(blankToNull(env.get("AI_SCRIPT")), "AI_SCRIPT")));
             default -> throw new Llm.LlmException("Unknown AI_PROVIDER '" + provider + "'. Use anthropic, openai, "
-                    + "azure-openai, gemini, openai-compatible or scripted.");
+                    + "azure-openai, gemini, openai-compatible, host or scripted.");
         };
         return client;
     }

@@ -22,15 +22,15 @@ public final class Main {
     private static final long CI_POLL_MS = 15_000;
     private static final long CI_TIMEOUT_MS = 3_600_000;
 
-    private final Path root;
-    private final JsonNode settings;
-    private final ContextRepo context;
-    private final Principles principles;
+    final Path root;
+    final JsonNode settings;
+    final ContextRepo context;
+    final Principles principles;
     private final Environment environment;
-    private final Connectors connectors;
-    private final String environmentPath;
+    final Connectors connectors;
+    final String environmentPath;
 
-    private Main(Path root, String environmentOverride) throws IOException {
+    Main(Path root, String environmentOverride) throws IOException {
         this.root = root;
         this.settings = Json.parseYaml(Files.readString(root.resolve("quartet.yaml")));
         this.context = new ContextRepo(root.resolve(settings.path("context").asText("context")));
@@ -68,6 +68,7 @@ public final class Main {
             case "setup-jenkins" -> main.setupJenkins(options);
             case "observe" -> main.observe(options);
             case "context-search" -> main.search(options);
+            case "mcp" -> main.mcp();
             case "doctor" -> main.doctor();
             default -> {
                 usage();
@@ -93,6 +94,7 @@ public final class Main {
               check-story --story <ref>  List questions about a story before writing tests
               observe --target <name> [--device <name>] [--path /]  Show what the agent sees on a screen
               context-search --query "text"
+              mcp                        Serve Quartet QE to a chat tool over MCP, so the AI you are chatting with writes the tests (no API key)
               doctor                     Check the AI, context and environment setup
 
             Story references: path/to/story.md, jira:KEY-1, ado:123, github:45, gitlab:7
@@ -109,7 +111,7 @@ public final class Main {
         return options;
     }
 
-    private WorkItem story(String reference) {
+    WorkItem story(String reference) {
         if (reference == null) throw new IllegalArgumentException("--story is required.");
         int split = reference.indexOf(':');
         if (split > 0 && !Files.exists(Path.of(reference))) {
@@ -118,19 +120,19 @@ public final class Main {
         return WorkItem.fromFile(Path.of(reference));
     }
 
-    private Path reportDir(WorkItem story) {
+    Path reportDir(WorkItem story) {
         return root.resolve(settings.path("reports").asText("reports")).resolve(story.id());
     }
 
-    private Set<String> targets() {
+    Set<String> targets() {
         return new TreeSet<>(environment.targets().keySet());
     }
 
-    private Path testSourceRoot() {
+    Path testSourceRoot() {
         return root.resolve(settings.path("tests").path("source").asText());
     }
 
-    private TestRunner runner() throws IOException {
+    TestRunner runner() throws IOException {
         return TestRunner.fromSettings(root).withEnvironment(Map.of("QUARTET_ENV", root.resolve(environmentPath).toString(), "QUARTET_MODE", "auto"));
     }
 
@@ -279,6 +281,15 @@ public final class Main {
     /** Removes a username, password or token from an https address, so none of it reaches Jenkins or a log. */
     static String cleanRemote(String remote) {
         return remote.replaceFirst("^(https?://)[^/@\\s]+@", "$1");
+    }
+
+    /** Lets the AI in a chat tool drive Quartet QE over MCP. Standard output carries only the protocol. */
+    private int mcp() throws IOException {
+        java.io.PrintStream protocol = System.out;
+        System.setOut(System.err);
+        ChatSession session = new ChatSession(this, root.resolve("build/quartet-host"));
+        new McpServer(session.tools(), ChatSession.INSTRUCTIONS, protocol).serve(System.in);
+        return 0;
     }
 
     private int observe(Map<String, String> options) throws Exception {

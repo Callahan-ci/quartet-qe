@@ -54,6 +54,11 @@ public final class TestGenerator {
     }
 
     private String system(WorkItem story) {
+        return systemPrompt(story, targets, principles);
+    }
+
+    /** The instructions every model gets for writing tests, whether it is called by API or is the chat AI. */
+    static String systemPrompt(WorkItem story, Set<String> targets, Principles principles) {
         return """
             You are a senior quality engineer. You write end-to-end tests that prove a story, in Java with JUnit 5.
 
@@ -176,6 +181,10 @@ public final class TestGenerator {
     }
 
     private JsonNode write(WorkItem story, Map<String, String> files, String fileName, String content) throws IOException {
+        return writeTest(outputRoot, story, files, fileName, content);
+    }
+
+    static JsonNode writeTest(Path outputRoot, WorkItem story, Map<String, String> files, String fileName, String content) throws IOException {
         if (!fileName.matches("[A-Za-z0-9_]+\\.java")) throw new IllegalArgumentException("file_name must be a simple .java name.");
         String packageLine = "package generated." + story.slug() + ";";
         if (!content.contains(packageLine)) throw new IllegalArgumentException("The file must start with: " + packageLine);
@@ -195,6 +204,12 @@ public final class TestGenerator {
     }
 
     private String finishProblem(JsonNode args, WorkItem story, Map<String, String> files, List<AgentLoop.Step> steps) {
+        return finishProblem(args, story, files, steps, rules, principles, context);
+    }
+
+    /** Why a set of tests cannot be handed over yet, or null when they can. */
+    static String finishProblem(JsonNode args, WorkItem story, Map<String, String> files, List<AgentLoop.Step> steps,
+                                StaticRules rules, Principles principles, ContextRepo context) {
         if (files.isEmpty()) return "No tests have been written.";
         List<Finding> blocking = new ArrayList<>(rules.check(files, story));
         blocking.addAll(TraceAudit.check(steps, principles, context));
