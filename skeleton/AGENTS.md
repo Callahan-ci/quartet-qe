@@ -37,6 +37,7 @@ If `quartet_start` returns `setup_incomplete`, or the user asks for help setting
 2. Read the engineering principles, then the contracts and telemetry for the services involved. Quartet refuses to finish until you have.
 3. Write the tests with `write_test`. Call `validate_tests` and fix everything it reports.
 4. The system under test must be running before the tests can run. Call `quartet_check_environment`. If something is not reachable, tell the user how to start it (the answer includes the steps) and wait. Do not invent results for a system you cannot reach. Then call `quartet_finish` with the traceability matrix (each acceptance criterion, its test and the targets it touches), and list anything you could not cover in `not_covered` with a reason.
+If the user wants to see the browser as the tests run, call `quartet_finish` with `watch` set to true (a visible window with each step slowed down; only on a machine with a screen).
 5. Call `quartet_next_step` in a loop. Each time it returns a `step`, do what a model would do for that step and send it with `quartet_answer_step`. Stop when it returns `finished`.
 6. Tell the user where the review page is (`reports/<story>/review.md`) and what needs their attention first.
 

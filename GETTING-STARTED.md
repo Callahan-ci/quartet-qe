@@ -227,6 +227,14 @@ Now run them with no AI:
 
 This is the default. Tests replay from `recordings/`, so they are fast, free and repeatable. A missing recording fails with a message saying so. If you do want a test run to be allowed to ask the AI when a step is missing or stale, set `QUARTET_MODE=auto`.
 
+To see the tests drive the browser on your own machine, add `-Pwatch` (a real window, with each step slowed down so you can follow it):
+
+```bash
+./gradlew test -Pwatch
+```
+
+Without it the browser stays hidden, as it must in CI. `get-started.sh` has the same option in its menu.
+
 A summary line shows what happened:
 
 ```text

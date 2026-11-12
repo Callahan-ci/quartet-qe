@@ -45,6 +45,17 @@ final class BrowserSurface implements Surface {
         this.allowedHost = allowedHost;
     }
 
+    /** Milliseconds to pause between browser actions, so a person can follow them. 0 when not set. */
+    static long slowMoMs(java.util.Map<String, String> env) {
+        String value = env.get("QUARTET_SLOWMO_MS");
+        if (value == null || value.isBlank()) return 0;
+        try {
+            return Math.max(0, Math.min(5000, Long.parseLong(value.strip())));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("QUARTET_SLOWMO_MS must be a number of milliseconds, such as 400.");
+        }
+    }
+
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
     }
@@ -72,7 +83,16 @@ final class BrowserSurface implements Surface {
             }
             browser = type.connectOverCDP(cdpUrl);
         } else {
-            browser = type.launch(new BrowserType.LaunchOptions().setHeadless(headless));
+            BrowserType.LaunchOptions launch = new BrowserType.LaunchOptions().setHeadless(headless);
+            long slowMo = slowMoMs(System.getenv());
+            if (slowMo > 0) launch.setSlowMo(slowMo);
+            try {
+                browser = type.launch(launch);
+            } catch (RuntimeException e) {
+                if (headless) throw e;
+                throw new IllegalStateException("Could not open a visible browser window: " + e.getMessage()
+                        + "\nThis needs a machine with a screen. On a server or in CI, run without watching (drop -Pwatch and QUARTET_HEADLESS=false).", e);
+            }
         }
         Browser.NewContextOptions options = new Browser.NewContextOptions()
                 .setViewportSize(preset.width(), preset.height())

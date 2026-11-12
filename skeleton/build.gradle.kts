@@ -27,9 +27,20 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.4")
 }
 
+// ./gradlew test -Pwatch opens a real browser window and slows each step down so you can follow it.
+// Add -PslowMo=800 to slow it further. Without -Pwatch the browser stays hidden, as it must in CI.
+val watch = project.hasProperty("watch")
+val slowMo: String = (project.findProperty("slowMo") as String?) ?: "400"
+
 tasks.test {
     useJUnitPlatform()
     maxParallelForks = 1
+    // End-to-end tests depend on live systems, so they always run when asked, never "up to date".
+    outputs.upToDateWhen { false }
+    if (watch) {
+        environment("QUARTET_HEADLESS", "false")
+        environment("QUARTET_SLOWMO_MS", slowMo)
+    }
     environment("QUARTET_ENV", System.getenv("QUARTET_ENV") ?: "$projectDir/$configuredEnvironment")
     testLogging {
         events("passed", "failed", "skipped")

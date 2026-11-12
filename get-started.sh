@@ -154,8 +154,9 @@ menu_tests_repo() {
     say "  1) Connect my chat tool, and set up my product with the AI"
     say "  2) Save a secret (a token or password), hidden"
     say "  3) Add an AI key instead (for unattended runs)"
-    say "  4) Set up Jenkins for these tests"
-    say "  5) Check my setup again"
+    say "  4) Run my tests and watch the browser"
+    say "  5) Set up Jenkins for these tests"
+    say "  6) Check my setup again"
     say "  q) Quit"
     printf '> '
     read -r choice || return 0
@@ -163,10 +164,11 @@ menu_tests_repo() {
       1) connect ;;
       2) secret ;;
       3) if [ -x ./set-ai-key.sh ]; then ./set-ai-key.sh; else say "set-ai-key.sh is not in this folder."; fi ;;
-      4) ./quartet-qe setup-jenkins ;;
-      5) ./quartet-qe doctor ;;
+      4) ./gradlew test -Pwatch ;;
+      5) ./quartet-qe setup-jenkins ;;
+      6) ./quartet-qe doctor ;;
       q|Q|"") return 0 ;;
-      *) say "Choose 1 to 5, or q." ;;
+      *) say "Choose 1 to 6, or q." ;;
     esac
     say ""
   done

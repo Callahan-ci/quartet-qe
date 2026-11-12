@@ -121,7 +121,8 @@ final class ChatSession {
                 "ac":{"type":"string"},"test":{"type":"string"},"targets":{"type":"array","items":{"type":"string"}}}}},
               "not_covered":{"type":"array","items":{"type":"object","required":["ac","reason"],"properties":{"ac":{"type":"string"},"reason":{"type":"string"}}}},
               "run":{"type":"boolean","description":"Run the tests after review. Default true."},
-              "prove":{"type":"boolean","description":"Also plant bugs to prove the tests catch them."}}}""", this::finish));
+              "prove":{"type":"boolean","description":"Also plant bugs to prove the tests catch them."},
+              "watch":{"type":"boolean","description":"Open a visible browser window and slow each step down, so the user can watch. Only on a machine with a screen."}}}""", this::finish)); 
         tools.add(Tool.of("quartet_next_step", "Wait for the next thing Quartet needs from you: a model step to answer, or the finished result. Call again whenever it returns waiting.", """
             {"type":"object","properties":{"wait_seconds":{"type":"integer","description":"How long to wait, up to 120. Default 30."}}}""",
                 args -> nextStep(Math.min(120, Math.max(1, args.path("wait_seconds").asInt(30))))));
@@ -467,7 +468,11 @@ final class ChatSession {
         }
 
         boolean run = args.path("run").asBoolean(true);
-        Map<String, String> hostEnv = Map.of("AI_PROVIDER", "host", HostClient.DIR_ENV, hostDir.toString());
+        Map<String, String> hostEnv = new java.util.HashMap<>(Map.of("AI_PROVIDER", "host", HostClient.DIR_ENV, hostDir.toString()));
+        if (args.path("watch").asBoolean(false)) {
+            hostEnv.put("QUARTET_HEADLESS", "false");
+            hostEnv.putIfAbsent("QUARTET_SLOWMO_MS", "400");
+        }
         String selector = "generated." + item.slug() + ".*";
         TestRunner runner = main.runner().withEnvironment(hostEnv);
         TestRunner.Result execution = run ? runner.run(selector, Map.of()) : null;

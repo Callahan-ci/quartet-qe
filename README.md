@@ -161,6 +161,17 @@ Every check below runs inside `run`. You only hear about one when it finds somet
 
 `context/engineering-principles/principles.yaml` turns your principles into rules, each set to `block`, `warn` or `off`. The bundled set covers emergent reuse, evolutionary design, small and simple tests, decoupling, data stewardship, production readiness and a walking skeleton that proves the layers connect first. Edit it to match your team.
 
+### Watch the browser
+
+By default tests run in a hidden browser, which is what CI needs. To see a test drive the browser on your own machine, add `-Pwatch`:
+
+```bash
+./gradlew test -Pwatch              # a real window, each step slowed down by 400 ms
+./gradlew test -Pwatch -PslowMo=900 # slower, if it is still too quick to follow
+```
+
+A replay uses no AI, so without the slow-down it would flash by in a few seconds. Phone tests open a window sized like the phone. The `get-started.sh` menu has the same option. When the AI is writing and running tests in your chat, ask it to run them with `watch`, and it opens the window too. This needs a machine with a screen, and fails with a clear message on a server. Never use it in CI.
+
 ### Repairing brittle tests
 
 ```bash
