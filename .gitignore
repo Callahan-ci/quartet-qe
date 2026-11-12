@@ -5,3 +5,5 @@ build/
 .demo-logs/
 docs/
 .DS_Store
+.idea/
+*.iml
