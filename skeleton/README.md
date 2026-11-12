@@ -17,6 +17,8 @@ To open a pull request with the review as its description:
 
 ## Setup
 
+To use the AI in your chat tool instead of an API key, open this repo in a chat tool that supports MCP and ask it to write tests for a story. `.mcp.json` and `AGENTS.md` tell it how. The rest of this section is for API keys.
+
 Needs JDK 21. Copy `.env.example` to `.env`, add your AI key, then:
 
 ```bash

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "quartet-qe": {
+      "command": "./quartet-qe",
+      "args": ["mcp"]
+    }
+  }
+}

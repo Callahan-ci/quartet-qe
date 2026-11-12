@@ -35,6 +35,7 @@ Review   reports/SHOP-142/review.md (ready to merge)
 - [How it works](#how-it-works)
 - [What it can test](#what-it-can-test)
 - [Why you can trust it](#why-you-can-trust-it)
+- [Use the AI you are already chatting with](#use-the-ai-you-are-already-chatting-with)
 - [Quick start](#quick-start)
 - [Run report](#run-report)
 - [Commands](#commands)
@@ -86,7 +87,7 @@ context/  +  story  ->  readiness check  ->  write tests  ->  static rules
 
 ### Record once, replay with no AI
 
-The first run uses the AI to work out how to do each step, and saves each verified step to `recordings/`. From then on, tests replay those steps with no AI, which is the default mode.
+The first run uses the AI (an API model, or the AI in your chat) to work out how to do each step, and saves each verified step to `recordings/`. From then on, tests replay those steps with no AI, which is the default mode.
 
 | `QUARTET_MODE` | Behaviour |
 | --- | --- |
@@ -156,6 +157,31 @@ Every check below runs inside `run`. You only hear about one when it finds somet
 
 The agent fixes a test that broke for a non-product reason, such as a changed label. An intent guard rejects any repair that deletes an assertion, disables a test or loosens an expectation. If the product is wrong, you get a bug report instead of a patch.
 
+## Use the AI you are already chatting with
+
+You do not need an API key. Quartet QE is also an [MCP](https://modelcontextprotocol.io) server, so the AI in your chat tool (Claude, Cursor, Copilot, or any tool that supports MCP) can write the tests itself. It uses the same context, rules, review and replay as an API model.
+
+1. Open your tests repo (or this repo, to try the demo) in your chat tool. The server is already configured in `.mcp.json`:
+
+   ```json
+   {"mcpServers": {"quartet-qe": {"command": "./quartet-qe", "args": ["mcp"]}}}
+   ```
+
+   The first start builds the tool, which takes a minute. Approve the server when your tool asks.
+2. Ask: **"Write tests for stories/SHOP-142.md using Quartet QE."** `AGENTS.md` tells the AI the order of work.
+3. The AI reads your context, writes the tests, and hands them over. Quartet checks them, runs an independent review, runs the tests, and writes the review page.
+4. You review `reports/<story>/review.md`. After that the tests replay with no AI at all.
+
+You can see the whole path with no AI and no key. `./demo-chat.sh` starts the real server, a stand-in chat AI and the real sample system. The stand-in answers each model step from a script, so it shows the plumbing, not AI judgement.
+
+How it works: when a test needs a model for a step, or the independent review needs one, Quartet writes the request to a shared folder. The chat AI reads it with `quartet_next_step`, answers with `quartet_answer_step`, and Quartet carries on. Every check, recording and guard rail is the same as with an API key.
+
+Differences to know about:
+
+- The independent review is a fresh conversation, but it is the same chat AI that wrote the tests. For a different model's opinion, use an API key for runs.
+- Each model step is a round trip through the chat, so a first run is slower than with an API key. Replays are unaffected.
+- Use an API key for unattended runs, such as a pipeline that writes tests for a story. Chat mode needs someone chatting.
+
 ## Quick start
 
 Needs JDK 21. No Docker.
@@ -217,6 +243,7 @@ observe --target <name> [--device <name>] [--path /]
                            Show what the agent sees on a screen
 context-search --query "text"
 doctor                     Check the AI, context and environment setup
+mcp                        Serve Quartet QE to a chat tool over MCP, so the AI you are chatting with writes the tests (no API key)
 ```
 
 Story references: `path/to/story.md`, `jira:KEY-1`, `ado:123`, `github:45`, `gitlab:7`. Any command accepts `--environment <file>`.
@@ -285,6 +312,7 @@ Set these in `.env`:
 | `azure-openai` | Also needs `AI_BASE_URL` |
 | `gemini` | Needs `AI_API_KEY` and `AI_MODEL` |
 | `openai-compatible` | Ollama, vLLM, LiteLLM or an internal gateway. Needs `AI_BASE_URL` |
+| `host` | The AI in your chat tool, over MCP. No key. Set for you by `./quartet-qe mcp` |
 
 Busy or rate-limited services are retried patiently, with progress shown. The agent never needs a vendor-specific feature, so any model that can call tools will work, though test quality depends on the model.
 
@@ -299,9 +327,12 @@ Busy or rate-limited services are retried patiently, with progress shown. The ag
 | `native/ios` | The iOS runner |
 | `context`, `stories`, `demo-shopflow`, `e2e-tests`, `reports` | The ShopFlow demo |
 | `assets` | README media |
+| `AGENTS.md`, `.mcp.json` | Instructions and server settings for chat tools. Copied into every new tests repo |
 | `GETTING-STARTED.md` | The step-by-step guide |
 
-Built with Java 21 and Gradle. Run the unit tests with:
+Built with Java 21 and Gradle. `./demo.sh` shows the framework with a scripted stand-in for the AI. `./demo-chat.sh` shows the chat path.
+
+Run the unit tests with:
 
 ```bash
 ./gradlew :quartet-core:test :quartet-runtime:test :quartet-generator:test
@@ -311,7 +342,8 @@ Built with Java 21 and Gradle. Run the unit tests with:
 
 - **iOS runner has never been run.** It has only been syntax-checked, because it needs Xcode. Android has been run on an emulator.
 - **Jenkins job creation** is covered by tests against a stand-in Jenkins, not yet a real server.
-- **The demo uses a scripted stand-in for the AI.** End-to-end quality with a live model is not yet measured across many stories, and depends on the model you choose.
+- **The demos use a scripted stand-in for the AI.** One real AI (Claude, through the chat path) has also written and run tests for a story it had not seen, SHOP-150, against the live sample system. Its first attempt had 3 of 4 tests fail because of how it named returned fields, which Quartet's grounding check caught. The second attempt passed 4 of 4, and then replayed with no AI. See `stories/SHOP-150.md`, `e2e-tests/src/test/java/generated/shop150` and `reports/SHOP-150`. That is one story, so quality across many stories and models is not yet measured.
+- **Chat mode needs an MCP-capable chat tool, and has had no run in a real chat product yet.** The server is tested with a stand-in AI and with a real AI driving the same protocol by hand. Check that your tool starts `./quartet-qe mcp` and lists the Quartet tools.
 - **Recorded steps** replay exactly, so they check what was recorded. New behaviour needs a new run with the AI.
 
 ## Licence

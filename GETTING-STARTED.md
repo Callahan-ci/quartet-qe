@@ -8,7 +8,7 @@ This guide takes you from a fresh clone to tests for your own product, with a pi
 | --- | --- | --- |
 | JDK 21 | Everything | `java -version` |
 | git | Everything | `git --version` |
-| An AI key | Writing new tests (not needed to run the demo, or to replay tests you already have) | See [step 4](#4-add-your-ai-key) |
+| An AI | Writing new tests: the AI in your chat tool (no key), or an API key. Not needed to run the demo, or to replay tests you already have | See [step 4](#4-give-it-an-ai) |
 | Android SDK platform tools | Optional. Android apps and on-device browsers | `adb version`, and `ANDROID_HOME` set |
 | Xcode | Optional. iOS apps | See `native/ios/README.md` |
 | Jenkins with the Pipeline: Multibranch, Git and Folders plugins | Optional. Pipelines | Your Jenkins admin |
@@ -31,6 +31,8 @@ The first run downloads dependencies and a browser, so allow a few minutes. The 
 4. **A brittle test is repaired without being weakened.** The repair keeps every assertion.
 
 The demo uses a scripted stand-in for the AI, so it needs no key and shows the framework working rather than AI judgement.
+
+To see the chat path as well, run `./demo-chat.sh`. It starts the real MCP server and answers each model step through it, the way a chat tool would.
 
 Open the review page it produced:
 
@@ -75,7 +77,23 @@ You get a ready project with the framework pinned as a submodule in `.quartet/`,
 
 Commit it, and push it to your own git host when you are ready.
 
-## 4. Add your AI key
+## 4. Give it an AI
+
+Choose one. You can switch at any time.
+
+### Option A: the AI you are already chatting with (no key)
+
+Open the tests repo in a chat tool that supports MCP, such as Claude Code, Claude Desktop or Cursor. The repo's `.mcp.json` already points at `./quartet-qe mcp`. Approve the server when asked, then say:
+
+> Write tests for stories/MY-STORY.md using Quartet QE.
+
+The AI follows `AGENTS.md`: it starts the story, reads your context, writes and validates the tests, hands them over, and answers the review and recording steps Quartet asks for. You get the review page at the end. The first start builds the tool, so allow a minute.
+
+If your chat tool does not read `.mcp.json`, add a server named `quartet-qe` that runs `./quartet-qe mcp` from the repo root.
+
+Do [step 5](#5-tell-it-about-your-system) first, because the AI reads your context. Then skip steps 6 and 7, because the chat does them, and continue at [step 8](#8-review-then-replay-with-no-ai).
+
+### Option B: an API key
 
 ```bash
 ./set-ai-key.sh
@@ -96,7 +114,7 @@ Then check it:
 ./quartet-qe doctor
 ```
 
-`doctor` checks the AI connection, your context and your environment, and says what to fix. The first run of `./quartet-qe` builds the tool, which takes a minute.
+`doctor` checks the AI connection, your context and your environment, and says what to fix. The first run of `./quartet-qe` builds the tool, which takes a minute. Use Option B for unattended runs, such as a pipeline that writes tests for a story.
 
 ## 5. Tell it about your system
 
@@ -274,7 +292,9 @@ A hosted Chromium (browserless, Kernel, a Docker sidecar) can replace the local 
 
 | What you see | What to do |
 | --- | --- |
-| `No AI configured` | Run `./set-ai-key.sh`, or create `.env` from `.env.example` |
+| `No AI configured` | Use your chat AI (Option A in step 4), run `./set-ai-key.sh`, or create `.env` from `.env.example` |
+| The chat AI cannot see the Quartet tools | Check the server is approved in your chat tool, and that `./quartet-qe mcp` starts from the repo root. Anything printed to the terminal other than the protocol means a setup problem. Run `./quartet-qe doctor` |
+| `The chat AI did not answer step` | The chat stopped answering. Ask it to call `quartet_next_step` and carry on |
 | `Stopped` followed by a message | Expected problems are reported without a stack trace. The message says what to change |
 | The AI service is busy or over quota | The tool retries patiently and shows progress. If it keeps failing, check your quota or switch provider in `.env` |
 | A test fails with `no recording` | Run `./quartet-qe run` once, or use `QUARTET_MODE=auto` |
