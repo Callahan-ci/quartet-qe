@@ -250,4 +250,45 @@ class OnboardingTest {
         assertThatThrownBy(() -> call("quartet_verify", "{\"what\":\"mystery\"}")).hasMessageContaining("what must be");
         assertThat(call("quartet_verify", "{\"what\":\"repos\"}").path("hint").asText()).contains("No repositories");
     }
+
+    private static List<String> ids(JsonNode advice) {
+        List<String> ids = new java.util.ArrayList<>();
+        advice.forEach(a -> ids.add(a.path("id").asText()));
+        return ids;
+    }
+
+    @Test
+    void aNewProjectIsAdvisedWhatToAddMostValuableFirstEachWithAReasonAndAWayToDoIt() throws Exception {
+        JsonNode checklist = call("quartet_onboarding", "{}");
+
+        assertThat(checklist.path("setup_strength").path("label").asText()).isEqualTo("Basic");
+        assertThat(ids(checklist.path("advice"))).startsWith("product", "environment", "context", "telemetry");
+        for (JsonNode advice : checklist.path("advice")) {
+            assertThat(advice.path("why").asText()).isNotBlank();
+            assertThat(advice.path("how").asText()).isNotBlank();
+            assertThat(advice.path("effort").asText()).isNotBlank();
+        }
+        JsonNode context = checklist.path("advice").get(2);
+        assertThat(context.path("why").asText()).contains("biggest quality win").contains("guesses");
+        assertThat(checklist.path("how_to_advise").asText()).contains("one at a time").contains("skip");
+    }
+
+    @Test
+    void adviceShrinksAsTheUserAddsContextAndTheSetupStrengthGrows() throws Exception {
+        configure("product", "{\"name\":\"Acme\",\"owner\":\"me\"}");
+        configure("environment_target", "{\"name\":\"api\",\"type\":\"api\",\"baseUrl\":\"https://staging.acme.test\"}");
+        JsonNode start = call("quartet_onboarding", "{}");
+        assertThat(ids(start.path("advice"))).startsWith("context").doesNotContain("product", "environment");
+
+        configure("context_file", "{\"path\":\"contracts/openapi/api.yaml\",\"content\":\"openapi: 3.0.3\\ninfo: {title: A, version: 1}\\npaths: {}\"}");
+        configure("context_file", "{\"path\":\"telemetry/api.yaml\",\"content\":\"service: api\\nobjectives: []\"}");
+        configure("context_file", "{\"path\":\"test-data/people.yaml\",\"content\":\"customers: [C-1]\"}");
+        configure("repo", "{\"name\":\"api\",\"provider\":\"local\",\"path\":\"../api\"}");
+
+        JsonNode later = call("quartet_onboarding", "{}");
+        assertThat(ids(later.path("advice"))).doesNotContain("context", "telemetry", "test_data", "source_repos").startsWith("git");
+        assertThat(later.path("setup_strength").path("done").asInt()).isGreaterThan(start.path("setup_strength").path("done").asInt());
+        assertThat(later.path("setup_strength").path("label").asText()).isEqualTo("Good");
+        assertThat(ids(later.path("advice")).toString()).contains("tracker", "jenkins");
+    }
 }

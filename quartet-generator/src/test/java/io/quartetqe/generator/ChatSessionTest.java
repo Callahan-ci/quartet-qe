@@ -247,22 +247,19 @@ class ChatSessionTest {
     private static final String SITE = "{\"site\":\"https://www.example.org\",\"story_text\":" + Json.str(SITE_STORY) + "}";
 
     @Test
-    void aProjectThatWasNeverAskedGetsTheQuestionsFirstAndNothingIsCreated() throws Exception {
+    void aTestsRepoNeedsNoQuestionsBeforeItsFirstStoryBecauseTheRecommendedDefaultsApply() throws Exception {
         Files.delete(project.resolve(SetupChoices.FILE));
 
         JsonNode reply = call("quartet_start", SITE);
 
-        assertThat(reply.path("needs_decisions").asBoolean()).isTrue();
-        assertThat(reply.path("ask_the_user").toString()).contains("Jenkins").doesNotContain("Where should these tests live");
-        assertThat(reply.path("next").asText()).contains("Do not choose for them").contains("quartet_setup");
-        assertThat(project.resolve("stories/EX-1.md")).doesNotExist();
-        assertThat(project.resolve("context/environments/example-org.yaml")).doesNotExist();
+        assertThat(reply.has("needs_decisions")).isFalse();
+        assertThat(reply.path("story").path("id").asText()).isEqualTo("EX-1");
+        assertThat(reply.path("targets").toString()).contains("site-web");
     }
 
     @Test
     void theAnswersAreRememberedSoTheUserIsNeverAskedTwice() throws Exception {
         Files.delete(project.resolve(SetupChoices.FILE));
-        call("quartet_start", SITE);
 
         JsonNode saved = call("quartet_setup", "{\"jenkins\":false}");
         assertThat(saved.path("saved").asBoolean()).isTrue();
@@ -308,10 +305,11 @@ class ChatSessionTest {
         becomeTheFramework();
 
         JsonNode reply = call("quartet_start", SITE);
-        assertThat(reply.path("ask_the_user").toString()).contains("Where should these tests live").contains("\"new\"").contains("\"existing\"").contains("\"here\"");
+        assertThat(reply.path("ask_the_user").toString()).contains("What is your product called").contains("Where should the tests live")
+                .contains("\"new\"").contains("\"existing\"").contains("\"here\"").doesNotContain("Jenkins");
+        assertThat(reply.path("next").asText()).contains("Do not ask about Jenkins").contains("recommended default");
 
         Path created = project.resolveSibling(project.getFileName() + "-site-tests");
-        assertThatThrownBy(() -> call("quartet_setup", "{\"jenkins\":false}")).hasMessageContaining("new, existing or here");
         JsonNode saved = call("quartet_setup", "{\"tests_repo\":\"new\",\"path\":" + Json.str(created.toString()) + ",\"jenkins\":false}");
         assertThat(saved.path("tests_repo").asText()).isEqualTo(created.toString());
         assertThat(created.resolve("quartet.yaml")).exists();
@@ -380,7 +378,7 @@ class ChatSessionTest {
         JsonNode checklist = call("quartet_onboarding", "{}");
         assertThat(checklist.path("needs_decisions").asBoolean()).isTrue();
         assertThat(checklist.path("why").asText()).contains("sample shop").contains("not to the user's product");
-        assertThat(checklist.path("ask_the_user").toString()).contains("Where should these tests live");
+        assertThat(checklist.path("ask_the_user").toString()).contains("Where should the tests live");
 
         String values = "{\"section\":\"product\",\"values\":{\"name\":\"Acme\",\"owner\":\"me\"}}";
         assertThatThrownBy(() -> call("quartet_configure", values)).hasMessageContaining("would change the demo").hasMessageContaining("quartet_setup");
@@ -395,5 +393,51 @@ class ChatSessionTest {
         call("quartet_configure", values);
         assertThat(Files.readString(created.resolve("context/manifest.yaml"))).contains("Acme");
         assertThat(Files.readString(project.resolve("context/manifest.yaml"))).as("the demo is untouched").isEqualTo(demoManifest);
+    }
+
+    @Test
+    void theProductNameAloneNamesTheNewRepoAndDescribesTheProductSoNothingIsAskedTwice() throws Exception {
+        Files.delete(project.resolve(SetupChoices.FILE));
+        becomeTheFramework();
+
+        // No tests_repo and no path: the recommended default is a new repo named after the product.
+        JsonNode saved = call("quartet_setup", "{\"name\":\"Zed Widgets 7381\"}");
+
+        Path created = project.resolveSibling("zed-widgets-7381-tests");
+        assertThat(saved.path("tests_repo").asText()).isEqualTo(created.toString());
+        assertThat(saved.path("product").asText()).isEqualTo("Zed Widgets 7381");
+        assertThat(saved.path("next").asText()).contains("without waiting to be asked").contains("quartet_onboarding");
+        assertThat(Files.readString(created.resolve("context/manifest.yaml"))).contains("Zed Widgets 7381");
+
+        JsonNode checklist = call("quartet_onboarding", "{}");
+        assertThat(checklist.path("items").get(0).path("id").asText()).isEqualTo("product");
+        assertThat(checklist.path("items").get(0).path("status").asText()).isEqualTo("done");
+    }
+
+    @Test
+    void jenkinsIsAskedLaterNotUpFrontAndCanBeSwitchedOnWhenTheUserIsReady() throws Exception {
+        JsonNode checklist = call("quartet_onboarding", "{}");
+        JsonNode jenkins = null;
+        for (JsonNode item : checklist.path("items")) if (item.path("id").asText().equals("jenkins")) jenkins = item;
+        assertThat(jenkins.path("status").asText()).isEqualTo("optional");
+        assertThat(jenkins.path("ask").asText()).contains("Skip this if they do not");
+        assertThat(jenkins.path("how").asText()).contains("quartet_setup jenkins=true");
+
+        JsonNode saved = call("quartet_setup", "{\"jenkins\":true}");
+        assertThat(saved.path("jenkins_setup").path("job").asText()).isEqualTo("not created yet");
+        assertThat(Files.readString(project.resolve(SetupChoices.FILE))).contains("jenkins: true");
+        assertThat(call("quartet_setup", "{}").path("jenkins").asBoolean()).as("a later call keeps the earlier choice").isTrue();
+    }
+
+    @Test
+    void startingAStoryBrieflySuggestsHowToGetMoreFromQuartetButTheSiteQuickStartDoesNot() throws Exception {
+        JsonNode start = call("quartet_start", story("SHOP-142"));
+
+        assertThat(start.path("get_more_from_quartet").size()).isEqualTo(2);
+        assertThat(start.path("get_more_from_quartet").toString()).contains("pull request");
+        assertThat(start.path("advice_note").asText()).contains("mention this briefly").contains("skip");
+
+        JsonNode site = call("quartet_start", SITE);
+        assertThat(site.has("get_more_from_quartet")).isFalse();
     }
 }

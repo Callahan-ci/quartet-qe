@@ -152,8 +152,8 @@ final class Onboarding {
                 .put("how", "quartet_configure section=connector, then ./set-secret.sh, then quartet_verify what=tracker or code_host");
         item(items, "jenkins", "A Jenkins pipeline", isConfigured(connectors, "jenkins") ? "done" : "optional",
                 isConfigured(connectors, "jenkins") ? "Jenkins is configured." : "Not configured. Quartet creates the job once it has the address and a token.")
-                .put("ask", "Do you use Jenkins? If so, what is its address and the user to log in as?")
-                .put("how", "quartet_configure section=connector kind=jenkins, then ./set-secret.sh JENKINS_TOKEN, then quartet_verify what=jenkins");
+                .put("ask", "Do you use Jenkins? If so, what is its address and the user to log in as? (Skip this if they do not.)")
+                .put("how", "quartet_configure section=connector kind=jenkins, then the user runs ./set-secret.sh JENKINS_TOKEN, then quartet_verify what=jenkins, then quartet_setup jenkins=true to write the Jenkinsfile and create the job");
 
         boolean ai = variables.containsKey("AI_API_KEY") || variables.containsKey("ANTHROPIC_API_KEY") || variables.containsKey("OPENAI_API_KEY") || variables.containsKey("GEMINI_API_KEY");
         item(items, "ai", "An AI key", "optional", ai ? "A key is saved, for unattended runs." : "No key, and none is needed: you, the AI in this chat, write the tests. A key is only for runs with nobody chatting, such as a pipeline.");
@@ -165,11 +165,94 @@ final class Onboarding {
 
         boolean ready = productDone && envDone;
         out.put("ready_to_write_first_test", ready);
+        out.set("setup_strength", strength(main));
+        ArrayNode advice = advice(main);
+        ArrayNode top = out.putArray("advice");
+        for (int i = 0; i < Math.min(5, advice.size()); i++) top.add(advice.get(i));
         out.put("next", ready
-                ? "The minimum is in place. Tell the user, and offer the optional items one at a time. Then they can ask for their first test."
-                : "Work through the items marked todo, one at a time, asking only what is missing. Use quartet_configure to write each answer, then quartet_onboarding again.");
+                ? "The minimum is in place. Tell the user, and offer the optional items one at a time (each can be skipped). Then they can ask for their first test."
+                : "Work through the items marked todo, one at a time, asking only what is missing and suggesting a sensible default for each. Write each answer with quartet_configure, then call quartet_onboarding again and keep going. Do not stop to ask whether to continue.");
+        out.put("how_to_advise", "Explain each recommendation in plain words using its why, offer them one at a time starting with the first, and let the user skip any. "
+                + "Do not lecture or list everything at once. The minimum is enough to start; the rest makes the tests better.");
         out.put("rules", "Never ask for or accept a token, password or key in chat. For a secret, name the variable and tell the user to run ./set-secret.sh NAME in a terminal, then use quartet_verify.");
         return out;
+    }
+
+    private static boolean configured(Main main, String kind) {
+        JsonNode section = main.connectors.config().path(kind);
+        for (String key : REQUIRED.get(kind)) {
+            String value = section.path(key).asText("");
+            if (value.isBlank() || PLACEHOLDER_VALUE.matcher(value).matches()) return false;
+        }
+        return true;
+    }
+
+    private static boolean hasFiles(Path dir) {
+        try (var files = Files.isDirectory(dir) ? Files.walk(dir) : java.util.stream.Stream.<Path>empty()) {
+            return files.anyMatch(Files::isRegularFile);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * What would make Quartet's tests better, most valuable first: each gap, why it matters, and how to fill it.
+     * Advice, never a requirement: the user can skip any of it.
+     */
+    static ArrayNode advice(Main main) throws IOException {
+        Path context = main.root.resolve(main.settings.path("context").asText("context"));
+        Path manifest = context.resolve("manifest.yaml");
+        JsonNode product = Files.isRegularFile(manifest) ? Json.parseYaml(Files.readString(manifest)) : Json.obj();
+        String productName = product.path("product").asText("");
+        boolean realTargets = main.environment.targets().values().stream().anyMatch(t -> !t.path("description").asText("").startsWith("Replace with"));
+        boolean anyTracker = configured(main, "jira") || configured(main, "azureDevOps") || configured(main, "github") || configured(main, "gitlab");
+        boolean codeHost = configured(main, "github") || configured(main, "gitlab") || configured(main, "azureDevOps");
+        Path repos = context.resolve("repos/repos.yaml");
+        boolean hasRepos = Files.isRegularFile(repos) && Json.parseYaml(Files.readString(repos)).path("repos").size() > 0;
+
+        ArrayNode advice = Json.arr();
+        if (productName.isBlank() || productName.contains("replace with your own")) {
+            addAdvice(advice, "product", 1, "Tests and reviews are written for your product by name, and the review page says what was tested and for whom.", "Tell me what it is called and who owns it.", "10 seconds");
+        }
+        if (!realTargets) {
+            addAdvice(advice, "environment", 1, "Without a real system to test there is nothing to run against. Quartet only ever visits the hosts you list.", "Give me the web address, API address, database or Kafka brokers of a test or staging environment.", "2 minutes");
+        }
+        if (!hasFiles(context.resolve("contracts")) && !hasFiles(context.resolve("services"))) {
+            addAdvice(advice, "context", 2, "This is the biggest quality win. Tests assert the real fields, status codes and events in your API spec. Without it the AI guesses them from the story alone, which is where wrong tests come from.", "Give me a link to your OpenAPI spec (I can download it), your event schemas, or a short description of each service.", "2 minutes");
+        }
+        if (!hasFiles(context.resolve("telemetry"))) {
+            addAdvice(advice, "telemetry", 3, "Quartet can check your metrics and response-time objectives, such as 95% of checkouts under 800 ms. Without it every review notes this as a gap and performance goes untested.", "Tell me your service objectives and the metrics each service exposes, and I will write them down.", "3 minutes");
+        }
+        if (!hasFiles(context.resolve("test-data"))) {
+            addAdvice(advice, "test_data", 4, "Tests need records that exist and must never use real personal data. Named synthetic customers and products keep tests repeatable and safe.", "List a few test customers, products or accounts that are safe to use (made-up ones are fine).", "2 minutes");
+        }
+        if (!hasRepos) {
+            addAdvice(advice, "source_repos", 5, "The AI can read the service's code to settle what the contract leaves open, instead of guessing.", "Where does the code live: a local folder, or a GitHub, GitLab or Azure DevOps repository?", "1 minute");
+        }
+        if (!codeHost || !hasOrigin(main)) {
+            addAdvice(advice, "git", 6, "Quartet can open a pull request with the review page as its description, so people approve the tests in the tool they already use. It needs git access for the tests repo, and a remote to push to.", "Which git host do you use (GitHub, GitLab, Azure DevOps)? Create an empty repo there for these tests; I will take the owner and repo name, and you save the token with ./set-secret.sh.", "5 minutes");
+        }
+        if (!anyTracker) {
+            addAdvice(advice, "tracker", 7, "Stories can be read straight from Jira, Azure DevOps, GitHub or GitLab, and the result is commented back on the story. Without it you write each story as a file.", "Where do your stories live? I will take the project details, and you save the token yourself.", "5 minutes");
+        }
+        if (!configured(main, "jenkins")) {
+            addAdvice(advice, "jenkins", 8, "A pipeline runs the tests on every branch and pull request with no AI, so regressions are caught without anyone asking. Quartet builds the pipeline itself.", "Do you use Jenkins? If so, give me its address and the user to log in as. Skip this if not.", "5 minutes");
+        }
+        return advice;
+    }
+
+    private static void addAdvice(ArrayNode advice, String id, int priority, String why, String how, String effort) {
+        advice.addObject().put("id", id).put("priority", priority).put("why", why).put("how", how).put("effort", effort);
+    }
+
+    /** A plain summary of how much of the useful setup is in place. */
+    static ObjectNode strength(Main main) throws IOException {
+        int gaps = advice(main).size();
+        int total = 9;
+        int done = Math.max(0, total - gaps);
+        return Json.obj().put("done", done).put("of", total)
+                .put("label", done >= 8 ? "Great" : done >= 5 ? "Good" : "Basic")
+                .put("meaning", "How much of what helps Quartet write better tests is in place. None of the extras are required.");
     }
 
     /** The minimum for a first test that is still missing, so quartet_start can point at onboarding. */
@@ -289,20 +372,27 @@ final class Onboarding {
     }
 
     private JsonNode product(Main main, JsonNode values) throws IOException {
-        Path file = contextDir(main).resolve("manifest.yaml");
+        Path file = writeProduct(main, need(values, "name"), need(values, "owner"), values.path("description").asText(""));
+        return Json.obj().put("saved", main.root.relativize(file).toString()).put("next", "Call quartet_onboarding to see what is left.");
+    }
+
+    /** Describes the product in context/manifest.yaml. An owner or description left blank is not changed. */
+    static Path writeProduct(Main main, String name, String owner, String description) throws IOException {
+        Path file = main.root.resolve(main.settings.path("context").asText("context")).resolve("manifest.yaml");
         ObjectNode manifest = Files.isRegularFile(file) ? (ObjectNode) Json.parseYaml(Files.readString(file)) : Json.obj();
-        manifest.put("product", need(values, "name"));
-        manifest.put("owner", need(values, "owner"));
-        if (!values.path("description").asText("").isBlank()) manifest.put("description", values.path("description").asText());
+        manifest.put("product", name);
+        if (!owner.isBlank()) manifest.put("owner", owner);
+        if (!description.isBlank()) manifest.put("description", description);
+        Path contextDir = main.root.resolve(main.settings.path("context").asText("context"));
         if (!manifest.has("read_first")) {
             ArrayNode readFirst = manifest.putArray("read_first");
             for (String candidate : List.of("engineering-principles/principles.yaml", "engineering-principles/quality-engineering.md", "engineering-principles/tech-stack.yaml")) {
-                if (Files.isRegularFile(contextDir(main).resolve(candidate))) readFirst.add(candidate);
+                if (Files.isRegularFile(contextDir.resolve(candidate))) readFirst.add(candidate);
             }
         }
         if (!manifest.has("services")) manifest.putArray("services");
         write(file, Json.YAML.writeValueAsString(manifest));
-        return Json.obj().put("saved", main.root.relativize(file).toString()).put("next", "Call quartet_onboarding to see what is left.");
+        return file;
     }
 
     private JsonNode environmentTarget(Main main, JsonNode values) throws Exception {

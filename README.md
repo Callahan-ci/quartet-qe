@@ -197,7 +197,21 @@ Differences to know about:
 
 A new project needs a few things before its first test: what the product is, the URLs and systems to test, what the AI should know about them, and optionally Jira or Azure DevOps, GitHub or GitLab, and Jenkins. Ask your AI: **"Help me set up Quartet QE for my product."**
 
-It calls `quartet_onboarding`, which returns a checklist of what is done and what is missing, and works through the open items one at a time. For each answer it uses `quartet_configure` to write the right file, then `quartet_verify` to check the connection for real.
+It calls `quartet_onboarding`, which returns a checklist of what is done and what is missing, and works through the open items one at a time. It asks as little as possible up front (the product's name, and where the tests should live), picks sensible defaults, and keeps going.
+
+It also **advises**. Only the product and one real system to test are needed to start, but each extra makes the tests better, so Quartet ranks what is missing, says why it matters, and lets you skip any of it:
+
+| Add | What you get |
+| --- | --- |
+| An OpenAPI spec or event schemas | The biggest win. Tests assert your real fields, status codes and events instead of guesses |
+| Service objectives and metrics | Tests check response-time objectives and metrics. Without them every review lists this as a gap |
+| Synthetic test data | Repeatable tests that never use real personal data |
+| Source code | The AI reads the code to settle what the contract leaves open |
+| A git host and a remote for the tests repo | A pull request with the review page as its description |
+| Jira, Azure DevOps, GitHub or GitLab stories | Stories read from where the team writes them, and results commented back |
+| Jenkins | A pipeline Quartet builds, running the tests on every branch with no AI |
+
+A `setup_strength` of Basic, Good or Great shows how much is in place, and the top suggestions also appear when a story starts and after the first results. For each answer it uses `quartet_configure` to write the right file, then `quartet_verify` to check the connection for real.
 
 | Item | What the AI asks, and what Quartet writes |
 | --- | --- |

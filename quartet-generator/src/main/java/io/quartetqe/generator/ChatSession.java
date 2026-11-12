@@ -34,6 +34,8 @@ final class ChatSession {
         and work through the open items one at a time, asking only what is missing and writing each answer with quartet_configure.
         Never ask for a token, password or key in the chat: name the variable and have the user run ./set-secret.sh NAME in a terminal.
         Check each connection with quartet_verify. Then write the first test.
+        Be a guide: explain in plain words why each extra (API specs, telemetry, test data, source code, git host, tracker, Jenkins) makes the tests better,
+        offer them one at a time using the advice quartet_onboarding returns, and let the user skip any.
         Work in this order:
         1. quartet_start with the story (a file path, or jira:KEY-1, ado:123, github:45, gitlab:7). Read the questions it raises.
            If the story is blocked, tell the user what to clarify and stop.
@@ -90,11 +92,13 @@ final class ChatSession {
               "story_text":{"type":"string","description":"The story itself, as markdown with an Acceptance criteria list. Quartet saves it in stories/. Use this when the user described what to test and there is no story file."},
               "site":{"type":"string","description":"A public website to test, such as https://www.example.com. Quartet creates the environment for it: a browser target on desktop and phones, an HTTP target, and an allow-list of only that site."}}}""",
                 this::start));
-        tools.add(Tool.of("quartet_setup", "Save the user's answers to the setup questions that quartet_start returned: where the tests live, and whether they want a Jenkins pipeline. Only call this with answers the user gave.", """
-            {"type":"object","required":["jenkins"],"properties":{
-              "tests_repo":{"type":"string","enum":["new","existing","here"],"description":"new: create a new tests repo. existing: use a tests repo the user already has (give path). here: keep the tests in this folder. Needed only when quartet_start asked where the tests should live."},
-              "path":{"type":"string","description":"For new: the folder to create, such as ../my-product-tests. For existing: the folder of the repo."},
-              "jenkins":{"type":"boolean","description":"Whether the user wants a Jenkins pipeline for these tests."}}}""", this::setup));
+        tools.add(Tool.of("quartet_setup", "Save the user's answers to the setup questions that quartet_start or quartet_onboarding returned: the product name and where the tests live. Creates the new tests repo when asked. Also used later to write the Jenkinsfile and job once the user wants Jenkins (jenkins=true). If an answer was empty, use the recommended default and carry on.", """
+            {"type":"object","properties":{
+              "name":{"type":"string","description":"The product's name. Names the new tests folder (../<name>-tests) and is saved as the product."},
+              "owner":{"type":"string","description":"Who owns the product, if the user said."},
+              "tests_repo":{"type":"string","enum":["new","existing","here"],"description":"new (the default): create a new tests repo. existing: use one the user has (give path). here: keep the tests in this folder."},
+              "path":{"type":"string","description":"For new: a folder, such as ../my-product-tests. For existing: the folder of the repo."},
+              "jenkins":{"type":"boolean","description":"Set true only when the user wants a Jenkins pipeline: Quartet writes the Jenkinsfile and tries to create the job."}}}""", this::setup));
         for (Tool tool : new Onboarding(this::reload).tools()) tools.add(gated(tool));
         for (Tool tool : ContextTools.context(main.context)) tools.add(recorded(tool));
         for (Tool tool : ContextTools.repos(main.context, main.connectors)) tools.add(recorded(tool));
@@ -165,7 +169,7 @@ final class ChatSession {
             boolean setupTool = tool.name().equals("quartet_onboarding") || tool.name().equals("quartet_configure");
             if (setupTool && isFramework(main.root) && SetupChoices.read(main.root) == null) {
                 if (tool.name().equals("quartet_onboarding")) {
-                    ObjectNode out = decisions(true);
+                    ObjectNode out = decisions();
                     out.put("why", "This folder is the Quartet QE framework, with a sample shop (ShopFlow) in it. Its environment and context belong to the demo, not to the user's product. "
                             + "Real tests live in their own repo, so first find out where.");
                     return out;
@@ -214,37 +218,42 @@ final class ChatSession {
             }
             return null;
         }
-        if (framework && demo) return null;
+        if (!framework || demo) return null; // a tests repo needs no questions: its first story can start at once
 
-        return decisions(framework);
+        return decisions();
     }
 
-    private static ObjectNode decisions(boolean framework) {
+    /** The two things to ask together before setting up in the framework folder. Everything else has a default. */
+    private static ObjectNode decisions() {
         ObjectNode out = Json.obj().put("needs_decisions", true);
         ArrayNode questions = out.putArray("ask_the_user");
-        if (framework) {
-            ObjectNode where = questions.addObject().put("id", "tests_repo").put("question", "Where should these tests live?");
-            ArrayNode options = where.putArray("options");
-            options.addObject().put("value", "new").put("meaning", "A new tests repo next to this one. Recommended: tests belong in their own repo, one per product. Quartet creates it, ready to use.");
-            options.addObject().put("value", "existing").put("meaning", "A tests repo you already have. Ask for its folder.");
-            options.addObject().put("value", "here").put("meaning", "This folder, which is the Quartet QE framework itself. Fine for a trial, but not where real tests belong.");
-        }
-        ObjectNode jenkins = questions.addObject().put("id", "jenkins").put("question", "Do you want a Jenkins pipeline that runs these tests on every branch?");
-        ArrayNode yesNo = jenkins.putArray("options");
-        yesNo.addObject().put("value", "yes").put("meaning", "Quartet writes the Jenkinsfile and creates the job, using the Jenkins settings in connectors.yaml. You will still need to push the repo.");
-        yesNo.addObject().put("value", "no").put("meaning", "No pipeline now. You can add one later with setup-jenkins.");
-        out.put("next", "Ask the user these questions in plain words and wait for their answers. Do not choose for them. Then call quartet_setup with the answers, "
-                + "then call quartet_start again with the same arguments. Nothing has been created yet.");
+        questions.addObject().put("id", "product_name").put("question", "What is your product called?")
+                .put("used_for", "Naming the new tests folder (../<name>-tests) and describing the product. Free text.");
+        ObjectNode where = questions.addObject().put("id", "tests_repo").put("question", "Where should the tests live?");
+        ArrayNode options = where.putArray("options");
+        options.addObject().put("value", "new").put("meaning", "A new tests repo next to this one. Recommended: tests belong in their own repo, one per product. Quartet creates it, ready to use.");
+        options.addObject().put("value", "existing").put("meaning", "A tests repo you already have. Ask for its folder.");
+        options.addObject().put("value", "here").put("meaning", "This folder, which is the Quartet QE framework itself. Fine for a trial, but not where real tests belong.");
+        out.put("next", "Ask these two together, in plain words. Do not ask about Jenkins or anything else yet: that comes later, as an optional item. "
+                + "If an answer is empty or unclear, use the recommended default (a new repo, named after the product, or ../my-product-tests) and carry on rather than asking again. "
+                + "Then call quartet_setup with name and tests_repo, and straight after call quartet_onboarding and keep going with the next open item.");
         return out;
+    }
+
+    private static String slug(String name) {
+        String slug = name.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+        return slug.isBlank() ? "my-product" : slug;
     }
 
     private JsonNode setup(JsonNode args) throws Exception {
         Path origin = main.root;
+        String name = args.path("name").asText("").strip();
         String where = args.path("tests_repo").asText("");
         Path target = origin;
         if (isFramework(origin)) {
+            if (where.isBlank()) where = "new"; // never stall: the recommended choice is the default
             switch (where) {
-                case "new" -> target = createTestsRepo(args.path("path").asText(""));
+                case "new" -> target = createTestsRepo(args.path("path").asText(name.isBlank() ? "" : "../" + slug(name) + "-tests"));
                 case "existing" -> {
                     String given = args.path("path").asText("");
                     if (given.isBlank()) throw new IllegalArgumentException("Give the folder of the existing tests repo as path.");
@@ -254,13 +263,15 @@ final class ChatSession {
                     }
                 }
                 case "here" -> { }
-                default -> throw new IllegalArgumentException("Say where the tests live: tests_repo is new, existing or here.");
+                default -> throw new IllegalArgumentException("tests_repo is new, existing or here.");
             }
         }
-        boolean jenkins = args.path("jenkins").asBoolean(false);
+        ObjectNode earlier = SetupChoices.read(target);
+        boolean jenkins = args.has("jenkins") ? args.path("jenkins").asBoolean(false) : earlier != null && earlier.path("jenkins").asBoolean(false);
         if (!target.equals(origin)) SetupChoices.write(origin, target.toString(), jenkins);
         SetupChoices.write(target, "here", jenkins);
         main = new Main(target, siteEnvironment);
+        if (!name.isBlank()) Onboarding.writeProduct(main, name, args.path("owner").asText(""), "");
 
         ObjectNode out = Json.obj().put("saved", true).put("tests_repo", target.toString()).put("jenkins", jenkins);
         if (jenkins) {
@@ -276,7 +287,9 @@ final class ChatSession {
             }
         }
         out.put("nothing_committed_or_pushed", true);
-        out.put("next", "If the user asked to set up their product, call quartet_onboarding now. If you were starting a story, call quartet_start again with the same arguments.");
+        if (!name.isBlank()) out.put("product", name);
+        out.put("next", "Carry on now without waiting to be asked: call quartet_onboarding and work through the next open item. "
+                + "If you were starting a story instead, call quartet_start again with the same arguments.");
         return out;
     }
 
@@ -350,6 +363,7 @@ final class ChatSession {
         }
         ObjectNode remembered = SetupChoices.read(main.root);
         if (remembered != null) out.put("jenkins_wanted", remembered.path("jenkins").asBoolean(false));
+        if (siteEnvironment == null) addAdvice(out, 2);
         ArrayNode targets = out.putArray("targets");
         main.targets().forEach(targets::add);
         out.put("rules_for_writing_tests", blocked ? "Resolve the blocking questions first." : TestGenerator.systemPrompt(story, main.targets(), main.principles));
@@ -391,6 +405,19 @@ final class ChatSession {
         Files.createDirectories(file.getParent());
         Files.writeString(file, text.endsWith("\n") ? text : text + "\n");
         return file.toString();
+    }
+
+    /** A couple of ways to get more out of Quartet, never more than asked for, and the user can ignore them. */
+    private void addAdvice(ObjectNode out, int limit) {
+        try {
+            ArrayNode all = Onboarding.advice(main);
+            if (all.isEmpty()) return;
+            ArrayNode top = out.putArray(limit == 2 ? "get_more_from_quartet" : "to_get_more_out_of_quartet");
+            for (int i = 0; i < Math.min(limit, all.size()); i++) top.add(all.get(i));
+            out.put("advice_note", "After the main result, mention this briefly and offer to do it now (call quartet_onboarding to go further). The user can skip it.");
+        } catch (IOException e) {
+            // Advice is a bonus. Never let it break a run.
+        }
     }
 
     private JsonNode finish(JsonNode args) throws IOException {
@@ -465,6 +492,7 @@ final class ChatSession {
         ArrayNode todo = out.putArray("next_steps_for_the_user");
         todo.add("Read " + out.path("review_page").asText() + ", then commit the tests and the recordings folder together. Nothing has been committed.");
         todo.add("Tests replay with no AI: ./gradlew test");
+        addAdvice(out, 3);
         ObjectNode chosen = SetupChoices.read(main.root);
         if (chosen != null && chosen.path("jenkins").asBoolean(false)) {
             todo.add("Push the repo so Jenkins builds it. If the job was not created yet, run ./quartet-qe setup-jenkins.");

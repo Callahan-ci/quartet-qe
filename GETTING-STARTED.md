@@ -128,7 +128,7 @@ Then check it:
 
 ## 5. Tell it about your system
 
-**With the AI in your chat:** say "Help me set up Quartet QE for my product." It asks for each item below in turn (product, URLs, contracts, source code, stories and git access, Jenkins), writes the files, and checks each connection. When it needs a token or password it names the variable and you run `./set-secret.sh NAME` in a terminal, so secrets never go through the chat. The rest of this step shows what it writes, if you would rather edit the files yourself.
+**With the AI in your chat:** say "Help me set up Quartet QE for my product." It asks the product's name and where the tests should live, then works through the rest (URLs, contracts, source code, stories and git access, Jenkins), writes the files, and checks each connection. It also tells you why each extra makes the tests better and lets you skip any of them: an OpenAPI spec is the biggest win, then service objectives, test data, source code, a git host, a tracker and Jenkins. When it needs a token or password it names the variable and you run `./set-secret.sh NAME` in a terminal, so secrets never go through the chat. The rest of this step shows what it writes, if you would rather edit the files yourself.
 
 Edit the files in `context/`. You can start small and add more as you go.
 

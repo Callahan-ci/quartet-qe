@@ -11,7 +11,7 @@ The server is configured in `.mcp.json`. Approve it when your tool asks. It expo
 | `quartet_start` | Begin a story: a file in `stories/`, or `jira:KEY-1`, `ado:123`, `github:45`, `gitlab:7` |
 | `context_list`, `context_search`, `context_read` | Read what the team knows: principles, services, contracts, telemetry |
 | `repo_list`, `repo_read` | Read source from repositories listed in `context/repos/repos.yaml` |
-| `quartet_onboarding`, `quartet_configure`, `quartet_secrets_status`, `quartet_verify` | First-time setup: a checklist, write the files from the user's answers, which secrets are saved (by name), and check each connection |
+| `quartet_onboarding`, `quartet_configure`, `quartet_secrets_status`, `quartet_verify` | First-time setup: a checklist with ranked advice, write the files from the user's answers, which secrets are saved (by name), and check each connection |
 | `quartet_setup` | Save the user's answers to the setup questions: where the tests live, and Jenkins |
 | `quartet_check_environment` | Check that the systems the tests talk to are reachable. Says how to start them if not |
 | `write_test`, `validate_tests` | Write a test file, then check it against the engineering principles |
@@ -20,7 +20,11 @@ The server is configured in `.mcp.json`. Approve it when your tool asks. It expo
 
 ## First-time setup
 
-If `quartet_start` returns `setup_incomplete`, or the user asks for help setting up, call `quartet_onboarding` and work through the open items one at a time. Ask only what is missing, in plain words. Write each answer with `quartet_configure`, then check it with `quartet_verify`. Offer the optional items (context, source code, Jira or Azure DevOps or GitHub or GitLab, Jenkins) one at a time, and let the user skip any.
+If `quartet_start` returns `setup_incomplete`, or the user asks for help setting up, call `quartet_onboarding` and help them set up. Be a guide, not an interrogator:
+
+- **Ask as little as possible, together.** In the framework folder, ask the product's name and where the tests should live (a new tests repo is recommended) in one go. If an answer is empty or unclear, use the recommended default and carry on instead of asking again. Do not ask about Jenkins or other optional things up front.
+- **Keep going.** After each answer, write it with `quartet_configure`, check it with `quartet_verify`, call `quartet_onboarding` again, and move on to the next open item without waiting to be asked.
+- **Advise.** `quartet_onboarding` returns a ranked `advice` list and a `setup_strength`. For each item, explain in plain words why it makes the tests better (the `why`), offer it one at a time starting with the first, and let the user skip it. The minimum (product and a real system to test) is enough to start. API specs, telemetry, test data, source code, a git host, a story tracker and Jenkins each make the tests better, and each can be added later.
 
 **Never ask for, accept or repeat a token, password or key.** For a secret, name the variable (for example `JIRA_TOKEN`) and tell the user to run `./set-secret.sh JIRA_TOKEN` in a terminal. The value never reaches you. Then call `quartet_verify`. Quartet refuses secrets in `quartet_configure`.
 
