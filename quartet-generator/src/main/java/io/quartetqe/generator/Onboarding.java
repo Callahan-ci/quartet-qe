@@ -275,8 +275,8 @@ final class Onboarding {
         values.fields().forEachRemaining(field -> {
             String key = field.getKey();
             if (SECRET_KEY.matcher(key).matches() && !key.endsWith("_env") && !key.equals("credentialsId")) {
-                throw new IllegalArgumentException("Do not put '" + key + "' in a chat. Use " + key + "_env with the name of a variable, such as ORDERS_DB_PASSWORD, "
-                        + "and ask the user to run ./set-secret.sh ORDERS_DB_PASSWORD in a terminal.");
+                throw new IllegalArgumentException("Do not put '" + key + "' in a chat. Name a variable instead (for a database, use " + key + "_env, such as ORDERS_DB_PASSWORD; "
+                        + "an integration already has one, such as JIRA_TOKEN) and ask the user to run ./set-secret.sh NAME in a terminal. The value then never reaches you.");
             }
             if (field.getValue().isObject()) rejectSecrets(field.getValue());
         });
