@@ -38,6 +38,10 @@ final class Binder {
         return key.replace("_", "").replace("-", "").toLowerCase();
     }
 
+    private static boolean related(String a, String b) {
+        return a.length() >= 3 && b.length() >= 3 && (a.contains(b) || b.contains(a));
+    }
+
     private static boolean identifierLike(String text) {
         return text.length() >= 6 && text.chars().anyMatch(Character::isDigit);
     }
@@ -137,6 +141,11 @@ final class Binder {
         }
         for (Leaf match : matches) {
             if (match.key().equals(wantedKey)) return match.path();
+        }
+        // "bookCount" for a tool's "count", or "httpStatus" for its "status": related names still read the same value.
+        // Unrelated names do not, so a number that merely equals some other field is never accepted.
+        for (Leaf match : matches) {
+            if (related(match.key(), wantedKey)) return match.path();
         }
         boolean distinctive = value.isTextual() && (identifierLike(text) || (text.length() >= 4 && matches.size() == 1));
         return distinctive && !matches.isEmpty() ? matches.get(0).path() : null;

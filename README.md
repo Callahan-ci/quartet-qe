@@ -142,6 +142,8 @@ A web target can use a hosted Chromium instead of a local one (browserless, Kern
 
 When a test fails, a screenshot of every screen it reached is saved next to the report, so you can see what the page looked like.
 
+On a screen the agent can also count what is listed (`screen_count`) and, on web pages, read what the accessibility tree does not show (`screen_query`): a star rating kept in a CSS class, an image's alt text, a link's address. Counts and attributes come from the tool, never from the AI's eyes, and an answer may name a value after what it is (`bookCount` for the tool's `count`) but not borrow a number from an unrelated field.
+
 ## Why you can trust it
 
 Every check below runs inside `run`. You only hear about one when it finds something.

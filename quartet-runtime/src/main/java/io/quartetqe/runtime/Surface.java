@@ -55,6 +55,17 @@ public interface Surface extends AutoCloseable {
 
     void back() throws Exception;
 
+    /** What a selector matches on the page: how many, their text, and chosen attributes. */
+    record Query(int count, List<String> texts, List<Map<String, String>> attributes) {}
+
+    /**
+     * Reads elements by CSS selector, for facts that are not in the accessibility tree: a rating kept in a CSS class,
+     * an image's alt text, a link's address. Read-only. Web surfaces only.
+     */
+    default Query query(String selector, List<String> attributes, int limit) throws Exception {
+        throw new UnsupportedOperationException("This screen cannot be read by selector. Use screen_observe, screen_read, screen_find_text or screen_count.");
+    }
+
     /** Layout facts such as horizontal overflow. Empty when a surface cannot report them. */
     default Map<String, Integer> layout() throws Exception {
         return Map.of();

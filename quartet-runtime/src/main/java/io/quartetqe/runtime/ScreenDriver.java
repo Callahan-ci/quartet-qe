@@ -109,11 +109,48 @@ final class ScreenDriver implements Driver {
                 Tool.of("screen_read", "Read one control: its name, value and link address. Reports found=false if it never appears.", CONTROL, this::read),
                 Tool.of("screen_find_text", "Wait for visible text matching a regular expression and return the matched text.", """
                     {"type":"object","required":["pattern"],"properties":{"pattern":{"type":"string"},"timeoutMs":{"type":"integer"}}}""", this::findText),
+                Tool.of("screen_count", "Count controls on the screen by role and/or part of their name, for example how many links or how many buttons named Add to basket. Use this instead of counting by eye.", """
+                    {"type":"object","properties":{"role":{"type":"string"},"nameContains":{"type":"string","description":"Case-insensitive part of the name"}}}""", this::count),
+                Tool.of("screen_query", "Read elements matched by a CSS selector on a web page: how many match (count), their text (texts), and chosen attributes. Use it for what the accessibility tree does not show, such as a rating kept in a CSS class (attributes: [\"class\"], then read classes), an image's alt text or a link's href. Read-only. Web only.", """
+                    {"type":"object","required":["selector"],"properties":{"selector":{"type":"string","description":"A CSS selector, for example p.star-rating"},"attributes":{"type":"array","items":{"type":"string"}},"limit":{"type":"integer","description":"How many matches to read in detail. Default 5, up to 50."}}}""", this::query),
                 Tool.of("screen_layout", "Report layout facts: viewportWidth, contentWidth and overflowPx. Empty on surfaces that cannot report them.", "{\"type\":\"object\",\"properties\":{}}", args -> {
                     ObjectNode out = Json.obj();
                     surface.layout().forEach(out::put);
                     return Driver.check(out, "ok");
                 }));
+    }
+
+    private JsonNode count(JsonNode args) throws Exception {
+        String role = args.path("role").asText("");
+        String part = args.path("nameContains").asText("").toLowerCase();
+        if (role.isBlank() && part.isBlank()) throw new IllegalArgumentException("Give role, nameContains or both.");
+        long count = surface.observe().elements().stream()
+                .filter(e -> role.isBlank() || e.role().equals(role))
+                .filter(e -> part.isBlank() || e.name().toLowerCase().contains(part)).count();
+        return Driver.check(Json.obj().put("count", count), count == 0 ? "count:none" : "count:some");
+    }
+
+    private JsonNode query(JsonNode args) throws Exception {
+        String selector = args.path("selector").asText("").strip();
+        if (selector.isEmpty()) throw new IllegalArgumentException("selector is needed.");
+        List<String> attributes = new java.util.ArrayList<>();
+        args.path("attributes").forEach(a -> attributes.add(a.asText()));
+        int limit = Math.max(1, Math.min(50, args.path("limit").asInt(5)));
+        Surface.Query found = surface.query(selector, attributes, limit);
+        ObjectNode out = Json.obj().put("count", found.count());
+        var texts = out.putArray("texts");
+        found.texts().forEach(texts::add);
+        var list = out.putArray("attributes");
+        for (var values : found.attributes()) {
+            ObjectNode item = list.addObject();
+            values.forEach(item::put);
+            // A CSS class list is also given as separate words, so "star-rating Three" can be read as Three.
+            if (values.containsKey("class")) {
+                var classes = item.putArray("classes");
+                for (String word : values.get("class").strip().split("\\s+")) classes.add(word);
+            }
+        }
+        return Driver.check(out, found.count() == 0 ? "count:none" : "count:some");
     }
 
     private JsonNode read(JsonNode args) throws Exception {

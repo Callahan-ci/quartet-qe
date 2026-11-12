@@ -138,6 +138,26 @@ final class BrowserSurface implements Surface {
         return value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"") ? value.substring(1, value.length() - 1) : value;
     }
 
+    @Override
+    public Query query(String selector, List<String> attributes, int limit) {
+        Locator all = page().locator(selector);
+        int count = all.count();
+        List<String> texts = new ArrayList<>();
+        List<java.util.Map<String, String>> found = new ArrayList<>();
+        for (int i = 0; i < Math.min(count, limit); i++) {
+            Locator one = all.nth(i);
+            String text = one.textContent(new Locator.TextContentOptions().setTimeout(2000));
+            texts.add(text == null ? "" : text.replaceAll("\\s+", " ").strip());
+            java.util.Map<String, String> values = new java.util.LinkedHashMap<>();
+            for (String attribute : attributes) {
+                String value = one.getAttribute(attribute, new Locator.GetAttributeOptions().setTimeout(2000));
+                if (value != null) values.put(attribute, value);
+            }
+            found.add(values);
+        }
+        return new Query(count, texts, found);
+    }
+
     private Locator locate(Element element) {
         return page().getByRole(AriaRole.valueOf(element.role().toUpperCase()), new Page.GetByRoleOptions().setName(element.name()).setExact(true)).nth(element.occurrence());
     }

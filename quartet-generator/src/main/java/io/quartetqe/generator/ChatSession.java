@@ -242,6 +242,8 @@ final class ChatSession {
 
     private static String slug(String name) {
         String slug = name.toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+        // "books-tests" and "books" both name the folder ../books-tests, never ../books-tests-tests.
+        slug = slug.replaceAll("(^|-)tests?$", "").replaceAll("^-|-$", "");
         return slug.isBlank() ? "my-product" : slug;
     }
 

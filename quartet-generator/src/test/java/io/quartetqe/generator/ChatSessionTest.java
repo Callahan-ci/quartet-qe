@@ -440,4 +440,15 @@ class ChatSessionTest {
         JsonNode site = call("quartet_start", SITE);
         assertThat(site.has("get_more_from_quartet")).isFalse();
     }
+
+    @Test
+    void aNameThatAlreadyEndsInTestsDoesNotMakeAFolderCalledTestsTests() throws Exception {
+        Files.delete(project.resolve(SetupChoices.FILE));
+        becomeTheFramework();
+
+        JsonNode saved = call("quartet_setup", "{\"name\":\"Delta Widgets Tests\"}");
+
+        assertThat(saved.path("tests_repo").asText()).endsWith("/delta-widgets-tests").doesNotContain("tests-tests");
+        assertThat(saved.path("product").asText()).isEqualTo("Delta Widgets Tests");
+    }
 }

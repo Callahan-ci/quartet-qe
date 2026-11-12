@@ -102,6 +102,9 @@ public final class TestGenerator {
             Valid targets: %3$s
 
             Instructions state intent, never mechanics: no selectors, SQL or URLs. Never invent endpoints, topics, fields or data.
+            The agent that carries out each act can count what is on a screen and read page attributes such as a rating kept in a CSS class,
+            so ask for them in plain words ("how many books are listed", "the star rating of the first book") and assert them in Java.
+            Name returned fields after what the tool reports, for example count, status or price, optionally with a prefix such as bookCount.
             Assert relative change when state is shared between runs, for example stock before and after.
 
             Engineering principles:
