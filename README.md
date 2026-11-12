@@ -172,6 +172,36 @@ By default tests run in a hidden browser, which is what CI needs. To see a test 
 
 A replay uses no AI, so without the slow-down it would flash by in a few seconds. Phone tests open a window sized like the phone. The `get-started.sh` menu has the same option. When the AI is writing and running tests in your chat, ask it to run them with `watch`, and it opens the window too. This needs a machine with a screen, and fails with a clear message on a server. Never use it in CI.
 
+### Keeping tests small: reusable steps
+
+Tests that each spell out the same journey get long, and every UI change means editing them all. Quartet's answer to the page object pattern is a **steps class**: a class in the `steps` package that holds journeys written once as `agent.act` calls, and any test calls them.
+
+```java
+// src/test/java/steps/Orders.java   (written once)
+public final class Orders {
+    private final TestAgent agent;
+    public Orders(TestAgent agent) { this.agent = agent; }
+
+    public ActResult placeOrder(String sku, int quantity) {
+        return agent.act("Place an order for {{quantity}} units of {{sku}}", with("sku", sku), with("quantity", quantity),
+                why("A customer checking out starts the order journey"), on("orders-api"), returns("orderId", "status"));
+    }
+}
+
+// a test: a few lines, intent only
+ActResult placed = new Orders(agent).placeOrder("SKU-1001", 2);
+assertThat(placed.get("status")).isEqualTo("RESERVED");
+```
+
+- **One place to fix.** A renamed button is repaired in one step, not in every test that uses it.
+- **One recording per step, not per test.** A recorded step is stored once (in `recordings/_shared`) and replayed by every test that uses it. Older per-test recordings still work. The same step on another device (iPhone, Android) is recorded separately.
+- **Variables.** Write a step's instruction with `{{variables}}` and `with(...)`, so one recording serves every value, such as every book or every customer.
+- **The rules see through steps.** A test is judged on everything it does, including the steps it calls, but a call to a step counts as one step however much it does. A problem inside a step is reported at the step. A step may take its reason as a parameter, `why(reason)`.
+- **Repetition is flagged.** The same act written in two test classes gets a warning to move it into a steps class.
+- **The AI uses them.** `list_steps` shows what exists and what each step does, `write_steps` adds one, and the AI is told to reuse before writing. They are committed in pull requests with the tests.
+
+On the bookshop example, three test classes each wrote "open the home page and count the books" and one test wrote four near-identical acts. Moving them into one `Catalogue` steps class left tests that read as intent, no act written twice, and the same existing recordings still replaying. A steps class does not make a small suite shorter, because every act is still written once. What it prevents is the suite growing in step with every test that repeats a journey.
+
 ### Repairing brittle tests
 
 ```bash

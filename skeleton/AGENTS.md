@@ -14,6 +14,7 @@ The server is configured in `.mcp.json`. Approve it when your tool asks. It expo
 | `quartet_onboarding`, `quartet_configure`, `quartet_secrets_status`, `quartet_verify` | First-time setup: a checklist with ranked advice, write the files from the user's answers, which secrets are saved (by name), and check each connection |
 | `quartet_setup` | Save the user's answers to the setup questions: where the tests live, and Jenkins |
 | `quartet_check_environment` | Check that the systems the tests talk to are reachable. Says how to start them if not |
+| `list_steps`, `write_steps` | Reusable steps (Quartet's page objects): see what exists, and write a journey once for every test to call |
 | `write_test`, `validate_tests` | Write a test file, then check it against the engineering principles |
 | `quartet_finish` | Hand over the tests. Starts an independent review, then runs them |
 | `quartet_next_step`, `quartet_answer_step` | Answer each model step Quartet needs from you |
@@ -35,7 +36,7 @@ If `quartet_start` returns `setup_incomplete`, or the user asks for help setting
    - **A story file or tracker key:** pass `story`.
    - **"Test my site www.example.com":** pass `site` (the web address) and `story_text`. Draft the story from what the user said, as markdown with an "Acceptance criteria" list of checks a person could verify, and show it to the user first. Quartet saves the story and creates the environment itself: a browser on desktop, iPhone and Android phone, plus an HTTP check, allowing only that site. Do not create or edit environment files by hand.
 2. Read the engineering principles, then the contracts and telemetry for the services involved. Quartet refuses to finish until you have.
-3. Write the tests with `write_test`. Call `validate_tests` and fix everything it reports.
+3. Call `list_steps` and reuse the reusable steps that exist. Write the tests with `write_test`, putting any journey that more than one test uses (opening the site, signing in, placing an order) into a steps class with `write_steps`, so tests stay a few lines long and nothing is copied. Call `validate_tests` and fix everything it reports.
 4. The system under test must be running before the tests can run. Call `quartet_check_environment`. If something is not reachable, tell the user how to start it (the answer includes the steps) and wait. Do not invent results for a system you cannot reach. Then call `quartet_finish` with the traceability matrix (each acceptance criterion, its test and the targets it touches), and list anything you could not cover in `not_covered` with a reason.
 If the user wants to see the browser as the tests run, call `quartet_finish` with `watch` set to true (a visible window with each step slowed down; only on a machine with a screen).
 5. Call `quartet_next_step` in a loop. Each time it returns a `step`, do what a model would do for that step and send it with `quartet_answer_step`. Stop when it returns `finished`.

@@ -57,6 +57,8 @@ final class ChatSession {
 
     private WorkItem story;
     private Map<String, String> files = new LinkedHashMap<>();
+    private Map<String, String> shared = new LinkedHashMap<>();
+    private final Map<String, String> sharedWritten = new LinkedHashMap<>();
     private List<AgentLoop.Step> steps = new ArrayList<>();
     private StaticRules rules;
     private Thread job;
@@ -109,9 +111,21 @@ final class ChatSession {
             return record("write_test", args, TestGenerator.writeTest(main.testSourceRoot(), story, files,
                     args.path("file_name").asText(), args.path("content").asText()));
         }));
+        tools.add(Tool.of("list_steps", "List the reusable steps that already exist (a steps class is Quartet's page object), what each does, and their source. Call this before writing tests, and reuse what fits.", EMPTY, args -> {
+            current();
+            return record("list_steps", args, StepsLibrary.describe(shared));
+        }));
+        tools.add(Tool.of("write_steps", "Create or replace a steps class in package steps: reusable journeys written once and called by any test, so tests stay short and one recording serves them all. It holds steps only, never tests.", """
+            {"type":"object","required":["file_name","content"],"properties":{
+              "file_name":{"type":"string","description":"For example Orders.java"},"content":{"type":"string"}}}""", args -> {
+            current();
+            JsonNode result = StepsLibrary.write(main.testSourceRoot(), shared, args.path("file_name").asText(), args.path("content").asText());
+            sharedWritten.put(result.path("written").asText(), shared.get(result.path("written").asText()));
+            return record("write_steps", args, result);
+        }));
         tools.add(Tool.of("validate_tests", "Compile the tests and check them against the engineering principles.", EMPTY, args -> {
             current();
-            return record("validate_tests", args, TestGenerator.validation(rules.check(files, story)));
+            return record("validate_tests", args, TestGenerator.validation(rules.check(everything(files), story)));
         }));
         tools.add(Tool.of("quartet_check_environment", "Check that every system the tests talk to is reachable before running them. Says how to start the system if it is not.", EMPTY,
                 args -> environmentStatus()));
@@ -334,6 +348,8 @@ final class ChatSession {
         if (reference.isBlank()) throw new IllegalArgumentException("Give story (a file path or tracker key) or story_text.");
         story = main.story(reference);
         files = new LinkedHashMap<>();
+        shared = StepsLibrary.load(main.testSourceRoot());
+        sharedWritten.clear();
         steps = new ArrayList<>();
         jobResult = null;
         rules = new StaticRules(main.principles, main.context, main.targets());
@@ -358,6 +374,7 @@ final class ChatSession {
         ArrayNode list = out.putArray("questions");
         questions.forEach(f -> list.add((f.blocking() ? "Must fix: " : "Question: ") + f.location() + ": " + f.message()));
         out.put("existing_tests", files.keySet().toString());
+        out.put("existing_steps", shared.keySet().toString());
         out.put("tests_repo", main.root.toString());
         List<String> basics = Onboarding.missingBasics(main);
         if (!basics.isEmpty() && siteEnvironment == null) {
@@ -428,7 +445,7 @@ final class ChatSession {
     private JsonNode finish(JsonNode args) throws IOException {
         current();
         if (job != null && job.isAlive()) throw new IllegalStateException("A review or run is already in progress. Call quartet_next_step.");
-        String problem = TestGenerator.finishProblem(args, story, files, steps, rules, main.principles, main.context);
+        String problem = TestGenerator.finishProblem(args, story, files, shared, steps, rules, main.principles, main.context);
         if (problem != null) throw new IllegalStateException(problem);
         if (args.path("run").asBoolean(true)) {
             List<String> down = Preflight.unreachable(main.environment.targets(), 1500);
@@ -441,10 +458,12 @@ final class ChatSession {
         jobResult = null;
         WorkItem started = story;
         Map<String, String> snapshot = new LinkedHashMap<>(files);
+        Map<String, String> sharedSnapshot = new LinkedHashMap<>(shared);
+        Map<String, String> sharedChanges = new LinkedHashMap<>(sharedWritten);
         List<AgentLoop.Step> trace = List.copyOf(steps);
         job = new Thread(() -> {
             try {
-                jobResult = complete(args, started, snapshot, trace);
+                jobResult = complete(args, started, snapshot, sharedSnapshot, sharedChanges, trace);
             } catch (Throwable e) {
                 jobResult = Json.obj().put("status", "error").put("message", String.valueOf(e.getMessage()));
             }
@@ -455,9 +474,10 @@ final class ChatSession {
     }
 
     /** Independent review, then the run, then the review page. Runs on its own thread. */
-    private JsonNode complete(JsonNode args, WorkItem item, Map<String, String> written, List<AgentLoop.Step> trace) throws IOException {
+    private JsonNode complete(JsonNode args, WorkItem item, Map<String, String> written, Map<String, String> sharedAll, Map<String, String> sharedChanged,
+                              List<AgentLoop.Step> trace) throws IOException {
         HostClient host = new HostClient(hostDir, hostTimeout(), 100);
-        List<Finding> review = new Quartet(host, main.context, main.principles).review(render(item, written));
+        List<Finding> review = new Quartet(host, main.context, main.principles).review(render(item, written, sharedAll));
         List<Finding> blockers = review.stream().filter(Finding::blocking).toList();
         if (!blockers.isEmpty()) {
             ObjectNode out = Json.obj().put("status", "needs_changes");
@@ -489,7 +509,7 @@ final class ChatSession {
         int corrections = (int) trace.stream().filter(s -> s.tool().equals("validate_tests") && s.result().path("blocking").asInt() > 0).count();
         List<Finding> questions = StoryReadiness.check(item, main.principles);
         TestGenerator.Result generation = new TestGenerator.Result(written, args.path("traceability"), args.path("not_covered"),
-                rules.check(written, item), review, TraceAudit.check(trace, main.principles, main.context), 1, answered.get(), 0, 0, corrections);
+                rules.check(everything(written, sharedAll), item), review, TraceAudit.check(trace, main.principles, main.context), 1, answered.get(), 0, 0, corrections, Map.copyOf(sharedChanged));
         Scorecard.Summary summary = Scorecard.write(main.reportDir(item), item, main.principles, questions, generation, execution, faults);
 
         ObjectNode out = Json.obj().put("status", summary.approved() ? "ready_to_merge" : "needs_attention");
@@ -498,6 +518,8 @@ final class ChatSession {
         ArrayNode where = out.putArray("files_written");
         String prefix = main.root.relativize(main.testSourceRoot()) + "/generated/" + item.slug() + "/";
         written.keySet().forEach(name -> where.add(prefix + name));
+        String stepsPrefix = main.root.relativize(main.testSourceRoot()) + "/";
+        sharedChanged.keySet().forEach(path -> where.add(stepsPrefix + path));
         ArrayNode todo = out.putArray("next_steps_for_the_user");
         todo.add("Read " + out.path("review_page").asText() + ", then commit the tests and the recordings folder together. Nothing has been committed.");
         todo.add("Tests replay with no AI: ./gradlew test");
@@ -522,9 +544,24 @@ final class ChatSession {
         return Long.parseLong(System.getenv().getOrDefault(HostClient.TIMEOUT_ENV, "900"));
     }
 
-    private static String render(WorkItem item, Map<String, String> written) {
+    /** The story's tests together with the shared steps they call, which is what is compiled and checked. */
+    private Map<String, String> everything(Map<String, String> tests) {
+        return everything(tests, shared);
+    }
+
+    private static Map<String, String> everything(Map<String, String> tests, Map<String, String> steps) {
+        Map<String, String> all = new LinkedHashMap<>(tests);
+        all.putAll(steps);
+        return all;
+    }
+
+    private static String render(WorkItem item, Map<String, String> written, Map<String, String> steps) {
         StringBuilder out = new StringBuilder(item.asPrompt()).append("\nTests:\n");
         written.forEach((path, source) -> out.append("\n--- ").append(path).append(" ---\n").append(source));
+        if (!steps.isEmpty()) {
+            out.append("\nReusable steps the tests call (shared by other tests too):\n");
+            steps.forEach((path, source) -> out.append("\n--- ").append(path).append(" ---\n").append(source));
+        }
         return out.toString();
     }
 

@@ -126,8 +126,13 @@ public final class TestAgent implements AutoCloseable {
     public ActResult act(String instruction, Act.Option... options) {
         Spec spec = spec(instruction, options);
         Map<String, Tool> tools = toolsFor(spec.on());
-        Path file = recorder.fileFor(testId, key(spec));
-        JsonNode recording = mode == Mode.LIVE ? null : recorder.load(file);
+        // Steps are stored once and shared by every test that uses them. The per-test file is only read, for older recordings.
+        Path file = recorder.sharedFile(key(spec, device));
+        JsonNode recording = null;
+        if (mode != Mode.LIVE) {
+            recording = recorder.load(file);
+            if (recording == null) recording = recorder.load(recorder.fileFor(testId, key(spec)));
+        }
         if (recording != null && !REPLAY_POLICY_VERSION.equals(recording.path("replayPolicy").asText())) {
             if (mode == Mode.REPLAY) {
                 throw new AgentActException("Recording is stale: replay policy " + recording.path("replayPolicy").asText()
@@ -355,9 +360,14 @@ public final class TestAgent implements AutoCloseable {
     }
 
     private static String key(Spec spec) {
+        return key(spec, null);
+    }
+
+    /** The same step on another device is a different recording, so the device is part of the key. */
+    private static String key(Spec spec, String device) {
         try {
-            byte[] hash = MessageDigest.getInstance("SHA-256")
-                    .digest((spec.template() + "|" + spec.on() + "|" + spec.returns()).getBytes(StandardCharsets.UTF_8));
+            String identity = spec.template() + "|" + spec.on() + "|" + spec.returns() + (device == null ? "" : "|" + device);
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(identity.getBytes(StandardCharsets.UTF_8));
             String slug = spec.template().toLowerCase().replaceAll("[^a-z0-9]+", "-");
             return slug.substring(0, Math.min(40, slug.length())) + "-" + HexFormat.of().formatHex(hash).substring(0, 8);
         } catch (java.security.NoSuchAlgorithmException e) {

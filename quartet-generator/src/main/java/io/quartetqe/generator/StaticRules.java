@@ -42,18 +42,63 @@ public final class StaticRules {
         for (String error : JavaInspector.compile(sources)) add(out, "AUTO-COMPILE", "compiler", error);
 
         List<TestFile> files = new ArrayList<>();
-        sources.forEach((path, source) -> {
-            TestFile file = JavaInspector.inspect(path, source);
-            files.add(file);
-            checkFile(file, source, out);
-        });
-        if (story != null) checkStory(files, story, out);
+        sources.forEach((path, source) -> files.add(JavaInspector.inspect(path, source)));
+
+        // Reusable steps keep tests small, so a test is judged by everything it does, including the steps it calls.
+        Map<String, JavaInspector.HelperMethod> helpers = new HashMap<>();
+        files.forEach(file -> file.helpers().forEach((name, method) -> helpers.merge(name, method, (a, b) -> {
+            List<ActCall> acts = new ArrayList<>(a.acts());
+            acts.addAll(b.acts());
+            List<String> calls = new ArrayList<>(a.calls());
+            calls.addAll(b.calls());
+            return new JavaInspector.HelperMethod(acts, calls);
+        })));
+        List<TestFile> resolved = files.stream().map(file -> withResolvedTests(file, helpers)).toList();
+
+        int index = 0;
+        for (String source : sources.values()) {
+            checkFile(files.get(index), resolved.get(index), source, out);
+            index++;
+        }
+        if (story != null) checkStory(resolved, files, story, out);
         return out;
     }
 
-    private void checkFile(TestFile file, String source, List<Finding> out) {
+    private static TestFile withResolvedTests(TestFile file, Map<String, JavaInspector.HelperMethod> helpers) {
+        List<TestMethod> tests = file.tests().stream().map(test -> resolve(test, helpers)).toList();
+        return new TestFile(file.path(), file.className(), file.packageName(), file.hasStory(), file.story(), file.hasExtension(), file.ordered(),
+                file.mutableStatics(), tests, file.helperActs(), file.helpers());
+    }
+
+    /** Adds the acts of every step a test calls, however deeply the steps call each other. */
+    private static TestMethod resolve(TestMethod test, Map<String, JavaInspector.HelperMethod> helpers) {
+        List<ActCall> acts = new ArrayList<>(test.acts());
+        int stepCalls = 0;
+        java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
+        for (String call : test.calls()) {
+            if (helpers.containsKey(call)) {
+                stepCalls++;
+                queue.add(call);
+            }
+        }
+        Set<String> visited = new HashSet<>();
+        while (!queue.isEmpty() && visited.size() < 100) {
+            String name = queue.poll();
+            if (!visited.add(name)) continue;
+            JavaInspector.HelperMethod helper = helpers.get(name);
+            acts.addAll(helper.acts());
+            helper.calls().stream().filter(helpers::containsKey).forEach(queue::add);
+        }
+        return new TestMethod(test.name(), test.criteria(), test.skeleton(), test.disabled(), test.hasTry(), test.sleeps(), test.assumes(), acts,
+                test.assertions(), test.line(), test.lastActPosition(), test.lastAssertPosition(), test.calls(), test.acts().size() + stepCalls);
+    }
+
+    private void checkFile(TestFile file, TestFile resolved, String source, List<Finding> out) {
         String path = file.path();
-        if (!file.hasStory() || !file.hasExtension()) add(out, "AUTO-WIRING", path, "The class needs @Story and @ExtendWith(AgentExtension.class).");
+        // A class with no tests is a steps class: reusable steps shared by tests. It needs no story wiring.
+        if (!file.tests().isEmpty() && (!file.hasStory() || !file.hasExtension())) {
+            add(out, "AUTO-WIRING", path, "The class needs @Story and @ExtendWith(AgentExtension.class).");
+        }
         if (file.ordered()) add(out, "DECOUPLE-ISOLATED", path, "Tests must not rely on execution order.");
         file.mutableStatics().forEach(name -> add(out, "DECOUPLE-ISOLATED", path, "Mutable static field '" + name + "' shares state between tests."));
 
@@ -63,9 +108,10 @@ public final class StaticRules {
         if (source.matches("(?s).*\\b(TODO|FIXME)\\b.*")) add(out, "AUTO-NO-MANUAL", path, "Leftover TODO or FIXME.");
 
         Map<String, Integer> seen = new HashMap<>();
-        for (TestMethod test : file.tests()) {
-            checkTest(path, test, out);
-            test.acts().forEach(act -> seen.merge(act.instruction(), 1, Integer::sum));
+        for (int i = 0; i < file.tests().size(); i++) {
+            checkTest(path, resolved.tests().get(i), file.tests().get(i), out);
+            // Repetition is judged on what a test writes itself. Acts reached through a shared step are reuse, not repetition.
+            file.tests().get(i).acts().forEach(act -> seen.merge(act.instruction(), 1, Integer::sum));
         }
         for (ActCall act : file.helperActs()) {
             checkAct(path, act, out);
@@ -76,14 +122,15 @@ public final class StaticRules {
         });
     }
 
-    private void checkTest(String path, TestMethod test, List<Finding> out) {
+    /** test is what the test does including the steps it calls. own is only what is written in it, which is what its location refers to. */
+    private void checkTest(String path, TestMethod test, TestMethod own, List<Finding> out) {
         String at = path + ":" + test.line() + " " + test.name();
         if (test.disabled()) add(out, "AUTO-NO-MANUAL", at, "Disabled tests provide no protection.");
         if (test.sleeps()) add(out, "PERF-NO-SLEEP", at, "Thread.sleep makes tests slow and flaky. Ask the agent to wait for the outcome.");
         if (test.hasTry()) add(out, "ASSERT-NO-SWALLOW", at, "try blocks can hide failures.");
         if (test.criteria().isEmpty()) add(out, "COVER-TRACE", at, "Add @AcceptanceCriteria.");
         if (test.criteria().size() > 2) add(out, "SIMPLE-FOCUS", at, "Test covers " + test.criteria().size() + " criteria. Keep one purpose per test.");
-        if (test.acts().size() > 8) add(out, "SIMPLE-FOCUS", at, "Test has " + test.acts().size() + " steps. Split it.");
+        if (test.steps() > 8) add(out, "SIMPLE-FOCUS", at, "Test has " + test.steps() + " steps. Split it, or move a run of steps into a reusable step.");
 
         boolean hasVerify = test.acts().stream().anyMatch(a -> a.kind().equals("verify"));
         if (test.assertions().isEmpty() && !hasVerify) add(out, "ASSERT-ORACLE", at, "The test has no assertion.");
@@ -93,7 +140,8 @@ public final class StaticRules {
         }
         if (test.lastActPosition() > test.lastAssertPosition()) add(out, "ASSERT-ORACLE", at, "The final step is never checked.");
 
-        for (ActCall act : test.acts()) checkAct(path, act, out);
+        // Acts reached through a step are checked once, in the file that holds the step, so a finding points at the right line.
+        for (ActCall act : own.acts()) checkAct(path, act, out);
     }
 
     private void checkAct(String path, ActCall act, List<Finding> out) {
@@ -108,7 +156,9 @@ public final class StaticRules {
         act.on().forEach(target -> {
             if (!targets.contains(target)) add(out, "GROUND-KNOWN", at, "Unknown target '" + target + "'. Known: " + targets);
         });
-        if (act.why() == null || act.why().split("\\s+").length < 4 || act.why().equalsIgnoreCase(instruction)) {
+        // A step may take its reason as a parameter, why(reason). That cannot be read here, so the caller's own text is trusted.
+        boolean dynamicWhy = JavaInspector.DYNAMIC.equals(act.why());
+        if (act.why() == null || (!dynamicWhy && (act.why().split("\\s+").length < 4 || act.why().equalsIgnoreCase(instruction)))) {
             add(out, "OBS-WHY", at, "why(...) must give the business reason in at least four words.");
         }
         Matcher known = SHOULD_BE_KNOWN.matcher(instruction);
@@ -117,7 +167,7 @@ public final class StaticRules {
         }
     }
 
-    private void checkStory(List<TestFile> files, WorkItem story, List<Finding> out) {
+    private void checkStory(List<TestFile> files, List<TestFile> written, WorkItem story, List<Finding> out) {
         List<TestMethod> tests = files.stream().flatMap(f -> f.tests().stream()).toList();
         Set<String> covered = new HashSet<>();
         tests.forEach(t -> covered.addAll(t.criteria()));
@@ -133,6 +183,16 @@ public final class StaticRules {
             skeletons.get(0).acts().forEach(act -> layers.addAll(act.on()));
             if (layers.size() < 2) add(out, "PROD-WALKING-SKELETON", skeletons.get(0).name(), "The skeleton should cross at least two layers.");
         }
+
+        // The same act written in several test classes belongs in a reusable step, so one recording serves them all.
+        Map<String, Set<String>> writtenIn = new HashMap<>();
+        for (TestFile file : written) {
+            if (file.tests().isEmpty()) continue;
+            file.tests().forEach(test -> test.acts().forEach(act -> writtenIn.computeIfAbsent(act.instruction(), k -> new java.util.TreeSet<>()).add(file.className())));
+        }
+        writtenIn.forEach((instruction, classes) -> {
+            if (classes.size() >= 2) add(out, "REUSE-EMERGENT", story.id(), "\"" + instruction + "\" is written in " + classes + ". Move it into a reusable step (a steps class) and call it from each.");
+        });
 
         List<ActCall> acts = new ArrayList<>(tests.stream().flatMap(t -> t.acts().stream()).toList());
         files.forEach(file -> acts.addAll(file.helperActs()));

@@ -52,6 +52,7 @@ Tests replay from `recordings/` and never call the AI. That is the default. Only
 | `context/` | What the agent knows: principles, services, contracts, telemetry, environments |
 | `stories/` | Stories kept as files |
 | `src/test/java/generated/` | The tests, one package per story |
+| `src/test/java/steps/` | Reusable steps (page objects) that tests call, written once |
 | `recordings/` | Verified steps that replay without AI. Commit these |
 | `reports/` | One review page per story |
 | `Jenkinsfile` | Found automatically by a Jenkins multibranch pipeline |

@@ -23,7 +23,7 @@ class ReviewPageTest {
     private final WorkItem story = WorkItem.of("S-1", "Title", "- AC1: Page fits\n- AC2: Never tested", "u");
 
     private TestGenerator.Result generated() {
-        return new TestGenerator.Result(Map.of("T.java", TEST), Json.arr(), Json.arr(), List.of(), List.of(), List.of(), 1, 3, 10, 5, 0);
+        return new TestGenerator.Result(Map.of("T.java", TEST), Json.arr(), Json.arr(), List.of(), List.of(), List.of(), 1, 3, 10, 5, 0, Map.of());
     }
 
     @Test

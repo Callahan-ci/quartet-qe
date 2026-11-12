@@ -44,6 +44,15 @@ final class ActRecorder {
         this.reportFile = reportFile;
     }
 
+    /**
+     * Where a step is stored once for every test that uses it. A step is the same wherever it is called from, so
+     * a login or "open the home page" is recorded and repaired in one place, not once per test.
+     */
+    Path sharedFile(String key) {
+        return cacheDir.resolve("_shared").resolve(key + ".json");
+    }
+
+    /** The older per-test location. Still read, so existing recordings keep working. */
     Path fileFor(String testId, String key) {
         return cacheDir.resolve(testId.replaceAll("[^A-Za-z0-9_.-]", "_")).resolve(key + ".json");
     }

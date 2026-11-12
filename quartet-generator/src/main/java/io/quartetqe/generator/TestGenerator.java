@@ -22,7 +22,7 @@ public final class TestGenerator {
 
     public record Result(Map<String, String> files, JsonNode traceability, JsonNode notCovered, List<Finding> staticFindings,
                          List<Finding> reviewFindings, List<Finding> auditFindings, int rounds, int turns, int inputTokens,
-                         int outputTokens, int selfCorrections) {}
+                         int outputTokens, int selfCorrections, Map<String, String> sharedSteps) {}
 
     private static final String FINISH_SCHEMA = """
         {"type":"object","required":["summary","traceability"],"properties":{
@@ -40,6 +40,8 @@ public final class TestGenerator {
     private final Connectors connectors;
     private final Path outputRoot;
     private final TestRunner runner;
+    private final Map<String, String> shared = new LinkedHashMap<>();
+    private final Map<String, String> sharedWritten = new LinkedHashMap<>();
 
     public TestGenerator(Llm.Client llm, ContextRepo context, Principles principles, Set<String> targets, Connectors connectors,
                          Path outputRoot, TestRunner runner) {
@@ -101,6 +103,31 @@ public final class TestGenerator {
             The same plain-English test covers web, mobile web and native apps.
             Valid targets: %3$s
 
+            Keep tests small and reuse steps, the way a page object keeps UI tests small:
+            - Call list_steps first. Reuse a step that exists. A step is a method in a class in package steps, such as new Orders(agent).placeOrder("SKU-1001", 2).
+            - A journey that more than one test uses, or likely will (opening the site, signing in, placing an order, reading an order), is a step. Write it once with
+              write_steps, as a class with a TestAgent constructor and methods that return ActResult, and call it from every test. Never copy the same act into two tests.
+            - Use {{variables}} with with(...) in a step's instruction so one recording serves every value, for example "Place an order for {{quantity}} units of {{sku}}".
+            - Name a step class after an area of the product (Catalog, Orders, Account), not after a story. Keep each step to one outcome, and keep a test to a handful of lines:
+              steps to get into the state, one act or step under test, and the assertions.
+            - A steps class holds steps only. It has no @Test, no @Story and no assertions about what the story expects: tests decide, steps do.
+            ```java
+            package steps;
+
+            import static io.quartetqe.runtime.Act.*;
+            import io.quartetqe.runtime.*;
+
+            public final class Orders {
+                private final TestAgent agent;
+                public Orders(TestAgent agent) { this.agent = agent; }
+
+                public ActResult placeOrder(String sku, int quantity) {
+                    return agent.act("Place an order for {{quantity}} units of {{sku}}", with("sku", sku), with("quantity", quantity),
+                        why("A customer checking out starts the order journey"), on("orders-api"), returns("orderId", "status"));
+                }
+            }
+            ```
+
             Instructions state intent, never mechanics: no selectors, SQL or URLs. Never invent endpoints, topics, fields or data.
             The agent that carries out each act can count what is on a screen and read page attributes such as a rating kept in a CSS class,
             so ask for them in plain words ("how many books are listed", "the star rating of the first book") and assert them in Java.
@@ -115,6 +142,11 @@ public final class TestGenerator {
 
     public Result generate(WorkItem story) {
         Map<String, String> files = new LinkedHashMap<>();
+        try {
+            shared.putAll(StepsLibrary.load(outputRoot));
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
         List<AgentLoop.Step> allSteps = new ArrayList<>();
         Quartet quartet = new Quartet(llm, context, principles);
         String prompt = "Task: generate tests\n\n" + story.asPrompt();
@@ -149,15 +181,21 @@ public final class TestGenerator {
             prompt = revision.toString();
         }
 
-        List<Finding> staticFindings = rules.check(files, story);
+        Map<String, String> everything = new LinkedHashMap<>(files);
+        everything.putAll(shared);
+        List<Finding> staticFindings = rules.check(everything, story);
         int corrections = (int) allSteps.stream().filter(s -> s.tool().equals("validate_tests") && s.result().path("blocking").asInt() > 0).count();
         return new Result(files, finish.path("traceability"), finish.path("not_covered"), staticFindings, review,
-                TraceAudit.check(allSteps, principles, context), rounds, turns, input, output, corrections);
+                TraceAudit.check(allSteps, principles, context), rounds, turns, input, output, corrections, Map.copyOf(sharedWritten));
     }
 
     private String render(WorkItem story, Map<String, String> files) {
         StringBuilder out = new StringBuilder(story.asPrompt()).append("\nTests:\n");
         files.forEach((path, source) -> out.append("\n--- ").append(path).append(" ---\n").append(source));
+        if (!shared.isEmpty()) {
+            out.append("\nReusable steps the tests call (shared by other tests too):\n");
+            shared.forEach((path, source) -> out.append("\n--- ").append(path).append(" ---\n").append(source));
+        }
         return out.toString();
     }
 
@@ -168,8 +206,21 @@ public final class TestGenerator {
             {"type":"object","required":["file_name","content"],"properties":{
               "file_name":{"type":"string","description":"For example CheckoutTest.java"},"content":{"type":"string"}}}""",
                 args -> write(story, files, args.path("file_name").asText(), args.path("content").asText())));
+        tools.add(Tool.of("list_steps", "List the reusable steps that already exist (a steps class is Quartet's page object), what each does, and their source. Call this before writing tests, and reuse what fits.", "{\"type\":\"object\",\"properties\":{}}",
+                args -> StepsLibrary.describe(shared)));
+        tools.add(Tool.of("write_steps", "Create or replace a steps class in package steps: reusable journeys written once and called by any test. The class holds steps only, never tests.", """
+            {"type":"object","required":["file_name","content"],"properties":{
+              "file_name":{"type":"string","description":"For example Orders.java"},"content":{"type":"string"}}}""", args -> {
+            JsonNode result = StepsLibrary.write(outputRoot, shared, args.path("file_name").asText(), args.path("content").asText());
+            sharedWritten.put(result.path("written").asText(), shared.get(result.path("written").asText()));
+            return result;
+        }));
         tools.add(Tool.of("validate_tests", "Compile the tests and check them against the engineering principles.", "{\"type\":\"object\",\"properties\":{}}",
-                args -> validation(rules.check(files, story))));
+                args -> {
+            Map<String, String> everything = new LinkedHashMap<>(files);
+            everything.putAll(shared);
+            return validation(rules.check(everything, story));
+        }));
         if (runner != null) {
             tools.add(Tool.of("run_tests", "Run this story's tests in the configured environment.", "{\"type\":\"object\",\"properties\":{}}", args -> {
                 TestRunner.Result result = runner.run("generated." + story.slug() + ".*", Map.of());
@@ -207,14 +258,16 @@ public final class TestGenerator {
     }
 
     private String finishProblem(JsonNode args, WorkItem story, Map<String, String> files, List<AgentLoop.Step> steps) {
-        return finishProblem(args, story, files, steps, rules, principles, context);
+        return finishProblem(args, story, files, this.shared, steps, rules, principles, context);
     }
 
     /** Why a set of tests cannot be handed over yet, or null when they can. */
-    static String finishProblem(JsonNode args, WorkItem story, Map<String, String> files, List<AgentLoop.Step> steps,
+    static String finishProblem(JsonNode args, WorkItem story, Map<String, String> files, Map<String, String> shared, List<AgentLoop.Step> steps,
                                 StaticRules rules, Principles principles, ContextRepo context) {
         if (files.isEmpty()) return "No tests have been written.";
-        List<Finding> blocking = new ArrayList<>(rules.check(files, story));
+        Map<String, String> everything = new LinkedHashMap<>(files);
+        everything.putAll(shared);
+        List<Finding> blocking = new ArrayList<>(rules.check(everything, story));
         blocking.addAll(TraceAudit.check(steps, principles, context));
         blocking.removeIf(f -> !f.blocking());
         if (!blocking.isEmpty()) {

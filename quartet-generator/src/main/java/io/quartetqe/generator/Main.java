@@ -224,6 +224,8 @@ public final class Main {
         Map<String, String> files = new LinkedHashMap<>();
         String prefix = root.relativize(testSourceRoot()) + "/generated/" + story.slug() + "/";
         outcome.generation().files().forEach((name, content) -> files.put(prefix + name, content));
+        String sourcePrefix = root.relativize(testSourceRoot()) + "/";
+        outcome.generation().sharedSteps().forEach((path, content) -> files.put(sourcePrefix + path, content));
 
         Connectors.CodeHost code = connectors.codeHost(options.get("code"));
         code.commitToNewBranch(branch, base, files, "Add end-to-end tests for " + story.id());

@@ -17,7 +17,7 @@ final class TraceAudit {
         int lastWrite = -1;
         int lastValidate = -1;
         for (int i = 0; i < steps.size(); i++) {
-            if (steps.get(i).tool().equals("write_test") && !steps.get(i).error()) lastWrite = i;
+            if ((steps.get(i).tool().equals("write_test") || steps.get(i).tool().equals("write_steps")) && !steps.get(i).error()) lastWrite = i;
             if (steps.get(i).tool().equals("validate_tests")) lastValidate = i;
         }
         if (lastWrite >= 0 && lastValidate < lastWrite) {

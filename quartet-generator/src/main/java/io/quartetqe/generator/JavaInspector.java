@@ -40,12 +40,23 @@ public final class JavaInspector {
 
     public record Assertion(String text, String matcher, List<String> literals, long line) {}
 
+    /**
+     * calls are the names of methods this method calls. steps is how many steps the test takes: its own acts plus one
+     * for each call to a reusable step, however many acts that step performs inside.
+     */
     public record TestMethod(String name, List<String> criteria, boolean skeleton, boolean disabled, boolean hasTry,
                              boolean sleeps, boolean assumes, List<ActCall> acts, List<Assertion> assertions, long line,
-                             long lastActPosition, long lastAssertPosition) {}
+                             long lastActPosition, long lastAssertPosition, List<String> calls, int steps) {}
+
+    /** A method that is not a test: a helper, or a reusable step in a steps class. */
+    public record HelperMethod(List<ActCall> acts, List<String> calls) {}
 
     public record TestFile(String path, String className, String packageName, boolean hasStory, String story,
-                           boolean hasExtension, boolean ordered, List<String> mutableStatics, List<TestMethod> tests, List<ActCall> helperActs) {}
+                           boolean hasExtension, boolean ordered, List<String> mutableStatics, List<TestMethod> tests, List<ActCall> helperActs,
+                           Map<String, HelperMethod> helpers) {}
+
+    /** The reason of an act is passed in rather than written out, as in a step's why(reason). */
+    static final String DYNAMIC = "\u0000dynamic";
 
     private static final Pattern STRING = Pattern.compile("\"((?:[^\"\\\\]|\\\\.)*)\"");
 
@@ -102,7 +113,7 @@ public final class JavaInspector {
     private static TestFile readUnit(String path, CompilationUnitTree unit, SourcePositions positions) {
         String packageName = unit.getPackageName() == null ? "" : unit.getPackageName().toString();
         ClassTree type = unit.getTypeDecls().stream().filter(ClassTree.class::isInstance).map(ClassTree.class::cast).findFirst().orElse(null);
-        if (type == null) return new TestFile(path, "", packageName, false, null, false, false, List.of(), List.of(), List.of());
+        if (type == null) return new TestFile(path, "", packageName, false, null, false, false, List.of(), List.of(), List.of(), Map.of());
 
         boolean hasStory = false;
         boolean hasExtension = false;
@@ -123,6 +134,7 @@ public final class JavaInspector {
         List<String> mutableStatics = new ArrayList<>();
         List<TestMethod> tests = new ArrayList<>();
         List<ActCall> helperActs = new ArrayList<>();
+        Map<String, HelperMethod> helpers = new java.util.LinkedHashMap<>();
         LineMap lines = unit.getLineMap();
         for (Tree member : type.getMembers()) {
             if (member instanceof VariableTree field && field.getModifiers().getFlags().contains(Modifier.STATIC)
@@ -132,10 +144,19 @@ public final class JavaInspector {
             if (member instanceof MethodTree method) {
                 TestMethod read = readMethod(method, unit, positions, lines);
                 if (isTest(method)) tests.add(classDisabled ? disabled(read) : read);
-                else helperActs.addAll(read.acts());
+                else {
+                    helperActs.addAll(read.acts());
+                    helpers.merge(read.name(), new HelperMethod(read.acts(), read.calls()), (a, b) -> {
+                        List<ActCall> acts = new ArrayList<>(a.acts());
+                        acts.addAll(b.acts());
+                        List<String> calls = new ArrayList<>(a.calls());
+                        calls.addAll(b.calls());
+                        return new HelperMethod(acts, calls);
+                    });
+                }
             }
         }
-        return new TestFile(path, type.getSimpleName().toString(), packageName, hasStory, story, hasExtension, ordered, mutableStatics, tests, helperActs);
+        return new TestFile(path, type.getSimpleName().toString(), packageName, hasStory, story, hasExtension, ordered, mutableStatics, tests, helperActs, helpers);
     }
 
     /** Annotations can be written with their full package name, which must not bypass any check. */
@@ -150,7 +171,7 @@ public final class JavaInspector {
 
     private static TestMethod disabled(TestMethod t) {
         return new TestMethod(t.name(), t.criteria(), t.skeleton(), true, t.hasTry(), t.sleeps(), t.assumes(), t.acts(), t.assertions(), t.line(),
-                t.lastActPosition(), t.lastAssertPosition());
+                t.lastActPosition(), t.lastAssertPosition(), t.calls(), t.steps());
     }
 
     private static boolean isTest(MethodTree method) {
@@ -170,6 +191,7 @@ public final class JavaInspector {
 
         List<ActCall> acts = new ArrayList<>();
         List<Assertion> assertions = new ArrayList<>();
+        List<String> calls = new ArrayList<>();
         boolean[] flags = new boolean[3];
         long[] last = {-1, -1};
         new TreeScanner<Void, Void>() {
@@ -191,6 +213,7 @@ public final class JavaInspector {
                     last[0] = Math.max(last[0], end);
                     if (name.equals("verify")) last[1] = Math.max(last[1], end);
                 }
+                if (!name.isEmpty() && !name.equals("act") && !name.equals("verify") && !isAssertion(node, name)) calls.add(name);
                 if (isAssertion(node, name)) {
                     assertions.add(new Assertion(node.toString(), name, matcherLiterals(node), lines.getLineNumber(start)));
                     last[1] = Math.max(last[1], end);
@@ -200,7 +223,7 @@ public final class JavaInspector {
         }.scan(method.getBody(), null);
 
         return new TestMethod(method.getName().toString(), criteria, skeleton, disabled, flags[0], flags[1], flags[2], acts, assertions,
-                lines.getLineNumber(positions.getStartPosition(unit, method)), last[0], last[1]);
+                lines.getLineNumber(positions.getStartPosition(unit, method)), last[0], last[1], calls, acts.size());
     }
 
     private static ActCall readAct(String kind, MethodInvocationTree node, long line) {
@@ -210,7 +233,9 @@ public final class JavaInspector {
         for (ExpressionTree argument : node.getArguments()) {
             if (argument instanceof MethodInvocationTree option) {
                 String name = methodName(option);
-                if (name.equals("why") && !option.getArguments().isEmpty()) why = literalOrText(option.getArguments().get(0));
+                if (name.equals("why") && !option.getArguments().isEmpty()) {
+                    why = option.getArguments().get(0) instanceof LiteralTree ? literalOrText(option.getArguments().get(0)) : DYNAMIC;
+                }
                 if (name.equals("on")) option.getArguments().forEach(target -> on.add(literalOrText(target)));
             }
         }

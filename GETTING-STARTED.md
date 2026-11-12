@@ -235,6 +235,8 @@ To see the tests drive the browser on your own machine, add `-Pwatch` (a real wi
 
 Without it the browser stays hidden, as it must in CI. `get-started.sh` has the same option in its menu.
 
+**Keep tests small with reusable steps.** If more than one test does the same journey, such as opening the site or placing an order, it belongs in a steps class in `src/test/java/steps/`, written once and called by every test. The AI does this for you (`list_steps` and `write_steps`), and the rules warn when the same act is copied between tests. See "Keeping tests small" in the README.
+
 A summary line shows what happened:
 
 ```text

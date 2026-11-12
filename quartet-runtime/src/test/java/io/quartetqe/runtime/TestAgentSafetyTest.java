@@ -106,8 +106,12 @@ class TestAgentSafetyTest {
     }
 
     private TestAgent agent(Path envFile, TestAgent.Mode mode) {
+        return agent(envFile, mode, "T.m", null);
+    }
+
+    private TestAgent agent(Path envFile, TestAgent.Mode mode, String testId, String device) {
         recorder = new ActRecorder(dir.resolve("cache"), dir.resolve("report.jsonl"));
-        return new TestAgent(Environment.load(envFile, Map.of()), () -> llm, mode, recorder, "T.m", "S-1", null, true);
+        return new TestAgent(Environment.load(envFile, Map.of()), () -> llm, mode, recorder, testId, "S-1", device, true);
     }
 
     @AfterEach
@@ -329,5 +333,62 @@ class TestAgentSafetyTest {
         assertThat(first).isEqualTo(KafkaGenerator.generate(schema, overrides, 7));
         assertThat(first.path("status").asText()).isEqualTo("FIXED");
         assertThat(first.path("nested").path("n").asInt()).isEqualTo(5);
+    }
+
+    private Path environmentFile() {
+        return dir.resolve("context/environments/t.yaml");
+    }
+
+    private long recordingFiles() throws IOException {
+        try (var files = Files.walk(dir.resolve("cache"))) {
+            return files.filter(p -> p.toString().endsWith(".json")).count();
+        }
+    }
+
+    @Test
+    void aStepRecordedByOneTestIsReplayedByAnotherWithNoAiAndStoredOnlyOnce() throws IOException {
+        llm.add("http_request", post());
+        llm.add(AgentLoop.FINISH, finish(Json.obj().put("status", "RESERVED")));
+        place();
+        agent.testPassed();
+        int promptsAfterRecording = llm.prompts.size();
+
+        agent = agent(environmentFile(), TestAgent.Mode.REPLAY, "Other.test", null);
+        ActResult again = place();
+        agent.testPassed();
+
+        assertThat(again.source()).isEqualTo(ActResult.Source.REPLAYED);
+        assertThat(llm.prompts).as("no AI for the second test").hasSize(promptsAfterRecording);
+        assertThat(recordingFiles()).as("one file for the step, not one per test").isEqualTo(1);
+        assertThat(Files.exists(dir.resolve("cache/_shared"))).isTrue();
+    }
+
+    @Test
+    void theSameStepOnAnotherDeviceIsASeparateRecording() throws IOException {
+        llm.add("http_request", post());
+        llm.add(AgentLoop.FINISH, finish(Json.obj().put("status", "RESERVED")));
+        place();
+        agent.testPassed();
+
+        agent = agent(environmentFile(), TestAgent.Mode.REPLAY, "T.m", "iphone");
+        assertThatThrownBy(this::place).hasMessageContaining("No recording for");
+    }
+
+    @Test
+    void recordingsMadeBeforeStepsWereSharedStillReplay() throws IOException {
+        llm.add("http_request", post());
+        llm.add(AgentLoop.FINISH, finish(Json.obj().put("status", "RESERVED")));
+        place();
+        agent.testPassed();
+        Path shared;
+        try (var files = Files.walk(dir.resolve("cache/_shared"))) {
+            shared = files.filter(p -> p.toString().endsWith(".json")).findFirst().orElseThrow();
+        }
+        Path legacy = dir.resolve("cache/T.m").resolve(shared.getFileName());
+        Files.createDirectories(legacy.getParent());
+        Files.move(shared, legacy);
+
+        agent = agent(environmentFile(), TestAgent.Mode.REPLAY, "T.m", null);
+        assertThat(place().source()).isEqualTo(ActResult.Source.REPLAYED);
     }
 }

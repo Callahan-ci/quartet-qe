@@ -476,4 +476,69 @@ class ChatSessionTest {
         assertThat(Files.readString(project.resolve("quartet.yaml"))).as("the demo is untouched").isEqualTo(before);
         assertThat(Files.readString(created.resolve("quartet.yaml"))).contains("environment: context/environments/example-org.yaml");
     }
+
+    private static final String ORDERS_STEPS = """
+        package steps;
+        import static io.quartetqe.runtime.Act.*;
+        import io.quartetqe.runtime.*;
+        public final class Orders {
+            private final TestAgent agent;
+            public Orders(TestAgent agent) { this.agent = agent; }
+            public ActResult placeOrder() {
+                return agent.act("Place an order for 2 units of SKU-1001 for customer C-42", why("A customer checking out starts the order journey"),
+                        on("orders-api"), returns("orderId", "status"));
+            }
+            public ActResult findOrder(String orderId) {
+                return agent.act("Find order {{orderId}} in the orders database", with("orderId", orderId),
+                        why("A reserved order must survive beyond the request"), on("orders-db"), returns("status"));
+            }
+        }
+        """;
+
+    private static final String TEST_USING_STEPS = """
+        package generated.shop142;
+        import static io.quartetqe.runtime.Act.*;
+        import static org.assertj.core.api.Assertions.assertThat;
+        import io.quartetqe.runtime.*;
+        import org.junit.jupiter.api.Test;
+        import org.junit.jupiter.api.extension.ExtendWith;
+        import steps.Orders;
+        @Story("SHOP-142")
+        @ExtendWith(AgentExtension.class)
+        class CheckoutWithStepsTest {
+            @Test @WalkingSkeleton @AcceptanceCriteria({"AC1", "AC2"})
+            void orderIsReservedAndSaved(TestAgent agent) {
+                Orders orders = new Orders(agent);
+                ActResult placed = orders.placeOrder();
+                assertThat(placed.get("status")).isEqualTo("RESERVED");
+                assertThat(orders.findOrder(placed.get("orderId")).get("status")).isEqualTo("RESERVED");
+            }
+        }
+        """;
+
+    @Test
+    void reusableStepsAreListedWrittenCheckedReviewedAndReportedAlongsideTheTests() throws Exception {
+        assertThat(call("quartet_start", story("SHOP-142")).path("existing_steps").asText()).isEqualTo("[]");
+        assertThat(call("list_steps", "{}").path("how_to_use").asText()).contains("No steps classes yet");
+
+        assertThatThrownBy(() -> call("write_steps", "{\"file_name\":\"Orders.java\",\"content\":\"package generated.shop142;\"}")).hasMessageContaining("package steps;");
+        call("write_steps", "{\"file_name\":\"Orders.java\",\"content\":" + Json.str(ORDERS_STEPS) + "}");
+        assertThat(project.resolve("e2e-tests/src/test/java/steps/Orders.java")).exists();
+        assertThat(call("list_steps", "{}").toString()).contains("placeOrder").contains("findOrder");
+
+        readTheContext();
+        call("write_test", "{\"file_name\":\"CheckoutWithStepsTest.java\",\"content\":" + Json.str(TEST_USING_STEPS) + "}");
+        JsonNode validation = call("validate_tests", "{}");
+        assertThat(validation.path("blocking").asInt()).as(validation.toString()).isZero();
+
+        // A second story starts knowing the steps already exist.
+        assertThat(call("quartet_start", story("SHOP-142")).path("existing_steps").asText()).contains("steps/Orders.java");
+        readTheContext();
+        call("write_test", "{\"file_name\":\"CheckoutWithStepsTest.java\",\"content\":" + Json.str(TEST_USING_STEPS) + "}");
+        call("validate_tests", "{}");
+        call("quartet_finish", "{\"traceability\":[],\"not_covered\":[{\"ac\":\"AC3\",\"reason\":\"later\"},{\"ac\":\"AC4\",\"reason\":\"later\"},{\"ac\":\"AC5\",\"reason\":\"later\"},{\"ac\":\"AC6\",\"reason\":\"later\"},{\"ac\":\"AC7\",\"reason\":\"later\"}],\"run\":false}");
+
+        JsonNode step = call("quartet_next_step", "{\"wait_seconds\":20}");
+        assertThat(step.path("messages").get(0).path("text").asText()).contains("Reusable steps the tests call").contains("class Orders");
+    }
 }
