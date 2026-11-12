@@ -32,6 +32,7 @@ principles:
     forTests: "Credentials stay in the environment. The agent can only reach allow-listed hosts."
     rules:
       - {id: SEC-NO-SECRETS, severity: block, description: "No secrets in test code"}
+      - {id: SEC-NO-SYSTEM-ACCESS, severity: block, description: "Tests and steps do not run programs, read files or environment variables, or open network connections of their own"}
   - name: "Automation by default"
     forTests: "Everything runs unattended in CI, with no manual steps or disabled tests."
     rules:

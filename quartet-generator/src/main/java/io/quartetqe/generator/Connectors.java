@@ -87,7 +87,27 @@ public final class Connectors {
         if (base.isMissingNode()) throw new IllegalStateException("connectors.yaml has no '" + name + "' section.");
         ObjectNode merged = base.deepCopy();
         if (overrides != null) overrides.fields().forEachRemaining(f -> merged.set(f.getKey(), f.getValue()));
+        requireEncrypted(name, merged);
         return merged;
+    }
+
+    /** Credentials are never sent in the clear to another machine. Plain http is for this computer, or a network the team vouches for. */
+    static void requireEncrypted(String name, JsonNode section) {
+        for (String key : List.of("baseUrl", "orgUrl", "apiUrl")) {
+            String address = section.path(key).asText("");
+            if (!address.regionMatches(true, 0, "http://", 0, 7)) continue;
+            String host;
+            try {
+                host = java.net.URI.create(address).getHost();
+            } catch (IllegalArgumentException e) {
+                host = null;
+            }
+            boolean local = host != null && (host.equals("localhost") || host.equals("127.0.0.1") || host.equals("[::1]") || host.equals("::1"));
+            if (!local && !section.path("allowHttp").asBoolean(false)) {
+                throw new IllegalStateException("The " + name + " address " + address + " uses plain http, which would send credentials across the network without "
+                        + "encryption. Use https, or set allowHttp: true under " + name + " in connectors.yaml if this is a private network you trust.");
+            }
+        }
     }
 
     public WorkItems workItems(String provider) {

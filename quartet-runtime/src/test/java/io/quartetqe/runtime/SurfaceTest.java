@@ -81,9 +81,9 @@ class SurfaceTest {
 
         assertThat(screen.text()).contains("Total 19.99");
         assertThat(commands).anyMatch(c -> c.endsWith("-s emulator-5554 shell input tap 200 750"));
-        assertThat(commands).anyMatch(c -> c.endsWith("shell input text C%s7\\;%srm"));
+        assertThat(commands).anyMatch(c -> c.endsWith("shell input text 'C%s7;%srm'"));
         assertThat(commands).anyMatch(c -> c.endsWith("shell am force-stop com.android.chrome"));
-        assertThat(commands).anyMatch(c -> c.contains("android.intent.action.VIEW -p com.android.chrome -d https://www.example.com/docs"));
+        assertThat(commands).anyMatch(c -> c.contains("android.intent.action.VIEW -p com.android.chrome -d 'https://www.example.com/docs'"));
     }
 
     @Test

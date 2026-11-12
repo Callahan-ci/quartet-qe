@@ -7,6 +7,10 @@ TARGET="${1:?Usage: ./new-tests-repo.sh <new-folder>}"
 [ -e "$TARGET" ] && { echo "$TARGET already exists."; exit 1; }
 URL="$(git -C "$HERE" remote get-url origin)"
 NAME="$(basename "$TARGET")"
+# The name ends up in files and in a perl substitution, so only plain characters are allowed.
+case "$NAME" in
+  ''|.*|*[!A-Za-z0-9._-]*) echo "The folder name may only contain letters, digits, dots, dashes and underscores, and cannot start with a dot: $NAME" >&2; exit 1 ;;
+esac
 
 # The version CI should fetch. Use this checkout's commit if it has been pushed, otherwise the pushed main.
 REF="$(git -C "$HERE" rev-parse HEAD)"
@@ -24,7 +28,8 @@ cp -R "$HERE/skeleton/." "$TARGET/"
 mkdir -p "$TARGET/gradle/wrapper"
 cp "$HERE/gradle/wrapper/gradle-wrapper.jar" "$HERE/gradle/wrapper/gradle-wrapper.properties" "$TARGET/gradle/wrapper/"
 cp "$HERE/gradlew" "$HERE/gradlew.bat" "$TARGET/"
-perl -pi -e "s|__NAME__|$NAME|g; s|__QUARTET_URL__|${URL%.git}|g; s|__QUARTET_REF__|$REF|g" "$TARGET/README.md" "$TARGET/settings.gradle.kts" "$TARGET/quartet.yaml"
+# Values go in through the environment. Interpolating them into the perl text let a crafted folder name run a command.
+NAME="$NAME" QURL="${URL%.git}" QREF="$REF" perl -pi -e 's/__NAME__/$ENV{NAME}/g; s/__QUARTET_URL__/$ENV{QURL}/g; s/__QUARTET_REF__/$ENV{QREF}/g' "$TARGET/README.md" "$TARGET/settings.gradle.kts" "$TARGET/quartet.yaml"
 chmod +x "$TARGET/quartet-qe" "$TARGET/gradlew"
 
 cd "$TARGET"

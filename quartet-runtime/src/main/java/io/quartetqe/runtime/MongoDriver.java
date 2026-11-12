@@ -46,7 +46,29 @@ final class MongoDriver implements Driver {
         return client.getDatabase(config.path("database").asText());
     }
 
+    private static final java.util.Set<String> ALWAYS_REFUSED = java.util.Set.of("$function", "$accumulator", "$where");
+    private static final java.util.Set<String> WRITES = java.util.Set.of("$out", "$merge");
+
+    /** Server-side code and, on a read-only target, stages that write, wherever they are nested. */
+    static void requireSafe(JsonNode node, boolean writable) {
+        if (node.isObject()) {
+            node.fields().forEachRemaining(field -> {
+                if (ALWAYS_REFUSED.contains(field.getKey())) {
+                    throw new IllegalArgumentException(field.getKey() + " runs code on the database server and is not allowed.");
+                }
+                if (!writable && WRITES.contains(field.getKey())) {
+                    throw new IllegalArgumentException("This database target is read-only, so " + field.getKey() + " is not allowed. "
+                            + "To allow changes the target needs allowWrite: true, and it should be a test database.");
+                }
+                requireSafe(field.getValue(), writable);
+            });
+        } else if (node.isArray()) {
+            node.forEach(item -> requireSafe(item, writable));
+        }
+    }
+
     private JsonNode find(JsonNode args) {
+        requireSafe(args.path("filter"), config.path("allowWrite").asBoolean(false));
         Document filter = args.has("filter") ? Document.parse(args.get("filter").toString()) : new Document();
         var documents = new ArrayList<Document>();
         database().getCollection(args.path("collection").asText()).find(filter).limit(args.path("limit").asInt(50)).into(documents);
@@ -54,6 +76,7 @@ final class MongoDriver implements Driver {
     }
 
     private JsonNode aggregate(JsonNode args) {
+        requireSafe(args.path("pipeline"), config.path("allowWrite").asBoolean(false));
         List<Document> pipeline = new ArrayList<>();
         args.path("pipeline").forEach(stage -> pipeline.add(Document.parse(stage.toString())));
         var documents = new ArrayList<Document>();

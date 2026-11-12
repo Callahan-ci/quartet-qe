@@ -20,6 +20,13 @@ public final class StaticRules {
     private static final Pattern PII = Pattern.compile("[\\w.+-]+@(?!example\\.)[\\w-]+\\.[\\w.]+|\\b\\d{4}[ -]?\\d{4}[ -]?\\d{4}[ -]?\\d{4}\\b|\\b\\d{3}-\\d{2}-\\d{4}\\b");
     private static final Pattern SECRET = Pattern.compile("(?i)(password\\s*=|bearer\\s+[a-z0-9._-]{8,}|api[_-]?key\\s*[=:]|AKIA[0-9A-Z]{16}|\\bsk-[a-zA-Z0-9_-]{16,})");
     private static final Pattern SHOULD_BE_KNOWN = Pattern.compile("(/api/[a-z0-9/_-]+|\\b[a-z]+\\.[a-z]+\\.[a-z]+\\b|\\bSKU-[A-Z0-9]+\\b)");
+    /** Tests and steps decide with Java assertions and act through the agent. They have no business running programs, reading files or variables, or opening connections. */
+    private static final Pattern SYSTEM_ACCESS = Pattern.compile(
+            "ProcessBuilder|Runtime\\s*\\.\\s*(getRuntime|exec)|java\\.lang\\.Process|\\.exec\\s*\\("
+            + "|System\\s*\\.\\s*(getenv|getProperty|setProperty|exit|load|loadLibrary|setSecurityManager)"
+            + "|java\\.io\\.File|File(Input|Output)Stream|File(Reader|Writer)|RandomAccessFile|java\\.nio\\.file|\\bFiles\\s*\\.\\s*\\w+\\s*\\(|\\bPaths?\\s*\\.\\s*(of|get)\\s*\\("
+            + "|java\\.net\\.|new\\s+(Server)?Socket\\s*\\(|HttpURLConnection|HttpClient\\b|\\bnew\\s+URL\\s*\\("
+            + "|java\\.lang\\.reflect|Class\\s*\\.\\s*forName|ClassLoader|setAccessible|getDeclared\\w+|MethodHandles?|javax\\.script|ScriptEngine|sun\\.misc|jdk\\.internal");
     private static final Set<String> WEAK = Set.of("isNotNull", "isNotEmpty", "isNotBlank", "isNotEqualTo");
 
     private final Principles principles;
@@ -104,6 +111,7 @@ public final class StaticRules {
 
         scan(HOSTS, source, match -> add(out, "PROD-ENV-AGNOSTIC", path, "Hard-coded address " + match + ". Use a named target."));
         scan(PII, source, match -> add(out, "DATA-NO-PII", path, "Real-looking personal data. Use context/test-data."));
+        scan(SYSTEM_ACCESS, source, match -> add(out, "SEC-NO-SYSTEM-ACCESS", path, "Tests and steps must not run programs, read files or environment variables, or open connections of their own (" + match.strip() + "). Ask the agent to act, and assert in Java."));
         scan(SECRET, source, match -> add(out, "SEC-NO-SECRETS", path, "Possible secret in test code. Reference it through the environment file."));
         if (source.matches("(?s).*\\b(TODO|FIXME)\\b.*")) add(out, "AUTO-NO-MANUAL", path, "Leftover TODO or FIXME.");
 

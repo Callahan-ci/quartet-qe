@@ -183,6 +183,9 @@ class OnboardingTest {
         server.start();
         try {
             String base = "http://127.0.0.1:" + server.getAddress().getPort();
+            assertThatThrownBy(() -> configure("contract_from_url", "{\"url\":\"" + base + "/openapi.yaml\"}"))
+                    .as("a local address is refused until the user has allowed that host").hasMessageContaining("private or local address").hasMessageContaining("guard.allowHosts");
+            configure("environment_target", "{\"name\":\"spec-host\",\"type\":\"api\",\"baseUrl\":\"" + base + "\"}");
             JsonNode saved = configure("contract_from_url", "{\"url\":\"" + base + "/openapi.yaml\"}");
             assertThat(saved.path("looks_like").asText()).contains("OpenAPI Store").contains("2 paths");
             assertThat(project.resolve("context/contracts/openapi/openapi.yaml")).exists();

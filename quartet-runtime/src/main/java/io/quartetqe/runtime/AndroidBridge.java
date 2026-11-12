@@ -132,7 +132,8 @@ final class AndroidBridge implements NativeSurface.Bridge {
     public void openUrl(String url) throws Exception {
         // A cold start means no test can read the page left behind by the previous one.
         run("shell", "am", "force-stop", BROWSER);
-        run("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-p", BROWSER, "-d", url);
+        if (!url.matches("(?i)https?://[^\\s]+")) throw new IllegalArgumentException("Only http and https addresses can be opened.");
+        run("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-p", BROWSER, "-d", shellQuote(url));
         awaitPageContent();
     }
 
@@ -162,6 +163,7 @@ final class AndroidBridge implements NativeSurface.Bridge {
      */
     @Override
     public void launchApp(String appId) throws Exception {
+        requireAppId(appId);
         run("shell", "am", "force-stop", appId);
         String component = launcherComponent(run("shell", "cmd", "package", "resolve-activity", "--brief", "-c", "android.intent.category.LAUNCHER", appId));
         if (component == null) {
@@ -245,9 +247,26 @@ final class AndroidBridge implements NativeSurface.Bridge {
 
     @Override
     public void typeText(String text) throws Exception {
-        // adb's input command reads spaces as %s, and its argument passes through the device shell.
-        String escaped = text.replace("\\", "\\\\").replace(" ", "%s").replaceAll("([\"'`$&|;<>()*?#~!])", "\\\\$1");
-        run("shell", "input", "text", escaped);
+        // adb joins its arguments and runs them through the device's shell, so a line break in typed text used to run
+        // the rest of it as a command. Control characters are refused and the text is quoted for the shell.
+        if (text.chars().anyMatch(c -> c < 0x20 || c == 0x7f)) {
+            throw new IllegalArgumentException("Text typed into an app cannot contain line breaks, tabs or other control characters.");
+        }
+        run("shell", "input", "text", shellQuote(text.replace(" ", "%s")));
+    }
+
+    /** One value for the device's shell, so nothing in it can be read as a command. */
+    static String shellQuote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
+    }
+
+    private static final Pattern APP_ID = Pattern.compile("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+");
+
+    private static String requireAppId(String appId) {
+        if (appId == null || !APP_ID.matcher(appId).matches()) {
+            throw new IllegalArgumentException("'" + appId + "' is not an Android package name, such as org.example.calculator.");
+        }
+        return appId;
     }
 
     @Override

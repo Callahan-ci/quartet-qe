@@ -11,13 +11,21 @@ import java.util.regex.Pattern;
 
 /** The agent's one set of screen tools, identical on web, mobile web and native. */
 final class ScreenDriver implements Driver {
-    private static final long WAIT_MS = 8000;
+    private static final long WEB_WAIT_MS = 8000;
+    // A phone or emulator draws a new screen more slowly than a browser, and was seen missing the 8 second mark under load.
+    private static final long NATIVE_WAIT_MS = 20_000;
     private static final String CONTROL = """
         {"type":"object","required":["role","name"],"properties":{
           "role":{"type":"string"},"name":{"type":"string"},
           "occurrence":{"type":"integer","description":"Zero-based position among controls with the same role and name"}}}""";
 
     private final Surface surface;
+
+    private long waitMs() {
+        String override = System.getenv("QUARTET_WAIT_MS");
+        if (override != null && override.matches("\\d{3,6}")) return Long.parseLong(override);
+        return surface instanceof NativeSurface ? NATIVE_WAIT_MS : WEB_WAIT_MS;
+    }
 
     ScreenDriver(Environment environment, String target, String requestedDevice, boolean headless) {
         JsonNode config = environment.target(target);
@@ -55,7 +63,7 @@ final class ScreenDriver implements Driver {
         String role = args.path("role").asText();
         String name = args.path("name").asText();
         int occurrence = args.path("occurrence").asInt(0);
-        long deadline = System.currentTimeMillis() + WAIT_MS;
+        long deadline = System.currentTimeMillis() + waitMs();
         int attempt = 0;
         while (true) {
             Surface.Element element = surface.observe().find(role, name, occurrence);
@@ -165,7 +173,7 @@ final class ScreenDriver implements Driver {
 
     private JsonNode findText(JsonNode args) throws Exception {
         Pattern pattern = Pattern.compile(args.path("pattern").asText());
-        long deadline = System.currentTimeMillis() + args.path("timeoutMs").asLong(WAIT_MS);
+        long deadline = System.currentTimeMillis() + args.path("timeoutMs").asLong(waitMs());
         int attempt = 0;
         while (true) {
             Matcher matcher = pattern.matcher(surface.observe().text());

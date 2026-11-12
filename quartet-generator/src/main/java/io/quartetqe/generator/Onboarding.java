@@ -502,6 +502,10 @@ final class Onboarding {
         }
         ObjectNode out = Json.obj().put("saved", main.root.relativize(file).toString()).put("target", name);
         out.putArray("hosts_now_allowed").addAll(toArray(added));
+        if (!added.isEmpty()) {
+            out.put("tell_the_user", "These hosts are now allowed, so tests and downloads may reach them: " + added + ". Say so plainly, and ask the user to check "
+                    + "the change to " + main.environmentPath + " before committing it.");
+        }
         List<String> secrets = new ArrayList<>();
         for (String field : List.of("user_env", "password_env")) {
             String variable = values.path(field).asText("");
@@ -611,6 +615,11 @@ final class Onboarding {
         }
         ObjectNode out = Json.obj().put("saved", file.getFileName().toString()).put("kind", kind);
         out.putArray("settings_changed").addAll(toArray(changed));
+        String destination = credentialHost(reloaded, kind);
+        if (destination != null) {
+            out.put("credentials_go_to", destination);
+            out.put("tell_the_user", "Tokens for " + kind + " will be sent to " + destination + ". Confirm with the user that this is the right address before they save a token.");
+        }
         out.putArray("secrets_to_save").addAll(toArray(new ArrayList<>(secretsNeeded)));
         out.put("next", secretsNeeded.isEmpty() ? "Call quartet_verify to check the connection."
                 : "Ask the user to run " + secretsNeeded.stream().map(s -> "./quartet-qe secret " + s).toList() + " in a terminal. The value is hidden and never shown to you. Then call quartet_verify.");
@@ -627,6 +636,21 @@ final class Onboarding {
         write(file, content);
         return Json.obj().put("saved", main.root.relativize(file).toString())
                 .put("next", "Edit the copy with context_file, for example to set a rule to warn or off. This repo now uses its own version of that file.");
+    }
+
+    /** The host an integration's credentials are sent to, so the user can check it. */
+    private static String credentialHost(Main main, String kind) {
+        JsonNode section = main.connectors.config().path(kind);
+        for (String key : List.of("baseUrl", "orgUrl", "apiUrl")) {
+            String address = section.path(key).asText("");
+            if (address.isBlank()) continue;
+            try {
+                return URI.create(address).getHost();
+            } catch (IllegalArgumentException e) {
+                return address;
+            }
+        }
+        return null;
     }
 
     private JsonNode contextFile(Main main, JsonNode values) throws IOException {
@@ -647,11 +671,20 @@ final class Onboarding {
     private JsonNode contractFromUrl(Main main, JsonNode values) throws Exception {
         String url = need(values, "url");
         URI uri = URI.create(url);
-        if (uri.getScheme() == null || !(uri.getScheme().equals("http") || uri.getScheme().equals("https")) || uri.getUserInfo() != null) {
-            throw new IllegalArgumentException("Give a plain http or https address with no username or password in it.");
+        // Every hop is checked, so a public address cannot redirect the download into the user's own network.
+        HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NEVER).build();
+        HttpResponse<byte[]> response = null;
+        for (int hop = 0; hop <= 4; hop++) {
+            UrlGuard.requirePublic(uri, main.environment::allowed);
+            response = client.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(20)).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
+            int code = response.statusCode();
+            if (code >= 300 && code < 400 && response.headers().firstValue("location").isPresent()) {
+                if (hop == 4) throw new IllegalStateException("Too many redirects.");
+                uri = uri.resolve(response.headers().firstValue("location").get());
+                continue;
+            }
+            break;
         }
-        HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build();
-        HttpResponse<byte[]> response = client.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(20)).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
         if (response.statusCode() != 200) throw new IllegalStateException(url + " answered " + response.statusCode() + ". If it needs a login, download the file yourself and ask the user to put it in context/contracts/.");
         if (response.body().length > 2_000_000) throw new IllegalStateException("That file is larger than 2 MB.");
         String body = new String(response.body(), java.nio.charset.StandardCharsets.UTF_8);

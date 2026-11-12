@@ -30,16 +30,47 @@ final class PostgresDriver implements Driver {
                   "sql":{"type":"string"},"params":{"type":"array"}}}""", this::query));
     }
 
+    private static final java.util.Set<String> READ_ONLY_STARTS = java.util.Set.of("SELECT", "WITH", "SHOW", "EXPLAIN", "VALUES", "TABLE");
+
+    private boolean writable() {
+        return config.path("allowWrite").asBoolean(false);
+    }
+
     private synchronized Connection connection() throws Exception {
         if (connection == null) {
             connection = DriverManager.getConnection(config.path("url").asText(),
                     config.path("user").asText(null), config.path("password").asText(null));
-            connection.setReadOnly(!config.path("allowWrite").asBoolean(false));
+            if (!writable()) {
+                // setReadOnly alone is not enforced on an auto-committing connection (it let a CREATE and an INSERT through).
+                // A read-only transaction is, and every query ends with a rollback.
+                connection.setAutoCommit(false);
+                connection.setReadOnly(true);
+            }
         }
         return connection;
     }
 
+    /** Only reading statements, on a read-only target. The database itself refuses the rest; this says why in plain words. */
+    static void requireReadOnlyStatement(String sql) {
+        String stripped = sql.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("(?m)--.*$", " ").replaceFirst("^[\\s(]+", "");
+        String first = stripped.isEmpty() ? "" : stripped.split("[\\s(;]", 2)[0].toUpperCase();
+        if (!READ_ONLY_STARTS.contains(first)) {
+            throw new IllegalArgumentException("This database target is read-only, so only SELECT, WITH, SHOW, EXPLAIN, VALUES and TABLE statements are allowed. "
+                    + "To allow changes the target needs allowWrite: true, and it should be a test database.");
+        }
+    }
+
     private JsonNode query(JsonNode args) throws Exception {
+        if (writable()) return run(args);
+        requireReadOnlyStatement(args.path("sql").asText());
+        try {
+            return run(args);
+        } finally {
+            connection().rollback();
+        }
+    }
+
+    private JsonNode run(JsonNode args) throws Exception {
         try (PreparedStatement statement = connection().prepareStatement(args.path("sql").asText())) {
             int index = 1;
             for (JsonNode param : args.path("params")) {

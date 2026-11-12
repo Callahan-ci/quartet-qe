@@ -37,6 +37,14 @@ public final class HostClient implements Llm.Client {
         try {
             Files.createDirectories(requests);
             Files.createDirectories(responses);
+            try {
+                // What the chat AI is asked and answers is for this user only.
+                for (Path folder : List.of(directory, requests, responses)) {
+                    Files.setPosixFilePermissions(folder, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+                }
+            } catch (UnsupportedOperationException ignored) {
+                // Not a POSIX file system.
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

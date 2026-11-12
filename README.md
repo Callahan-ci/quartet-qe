@@ -154,7 +154,7 @@ Every check below runs inside `run`. You only hear about one when it finds somet
 - **Only verified steps are recorded**, and they replay with no AI.
 - **Repairs cannot weaken a test.** No deleted assertions, no disabled tests, no changed expectations without evidence. A product bug is reported, not patched around.
 - **Proof it catches bugs.** With `--prove`, bugs are planted in a test build and the tests must catch them.
-- **Guard rails.** Only allow-listed hosts, read-only databases by default, and secrets removed from prompts, logs and reports.
+- **Guard rails.** Only allow-listed hosts. Databases are read-only by default, enforced by a read-only transaction and a statement check, not just a setting. Generated tests cannot run programs, read files or environment variables, or open connections of their own. Downloads cannot reach private networks. Secrets are removed from prompts, logs and reports. See [SECURITY.md](SECURITY.md).
 
 ### Engineering principles
 

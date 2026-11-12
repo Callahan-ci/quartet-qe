@@ -77,6 +77,14 @@ final class ChatSession {
         try {
             Files.createDirectories(requests);
             Files.createDirectories(responses);
+            try {
+                // What the chat AI is asked and answers is for this user only.
+                for (Path folder : List.of(hostDir, requests, responses)) {
+                    Files.setPosixFilePermissions(folder, java.nio.file.attribute.PosixFilePermissions.fromString("rwx------"));
+                }
+            } catch (UnsupportedOperationException ignored) {
+                // Not a POSIX file system.
+            }
             clear(requests);
             clear(responses);
         } catch (IOException e) {
@@ -323,10 +331,32 @@ final class ChatSession {
         return array;
     }
 
+    /**
+     * A new tests repo goes in the user's own folders and has a plain name. The path can come from a chat, so a name that
+     * means something to a shell or to perl, or a place such as ~/.ssh or /etc, is refused before anything is created.
+     */
+    static void requireSafeNewRepoPath(Path target) throws IOException {
+        String name = target.getFileName() == null ? "" : target.getFileName().toString();
+        if (!name.matches("[A-Za-z0-9][A-Za-z0-9._-]*")) {
+            throw new IllegalArgumentException("A tests repo folder may only be named with letters, digits, dots, dashes and underscores, such as books-tests. Not: " + name);
+        }
+        Path parent = target.toAbsolutePath().normalize().getParent();
+        if (parent == null || !Files.isDirectory(parent)) throw new IllegalArgumentException("The folder to put it in does not exist: " + parent);
+        Path real = parent.toRealPath();
+        Path home = Path.of(System.getProperty("user.home")).toRealPath();
+        Path temporary = Path.of(System.getProperty("java.io.tmpdir")).toRealPath();
+        Path base = real.startsWith(home) ? home : real.startsWith(temporary) ? temporary : null;
+        if (base == null) throw new IllegalArgumentException("A new tests repo goes inside your home folder, not in " + real + ".");
+        for (Path part : base.relativize(real)) {
+            if (part.toString().startsWith(".")) throw new IllegalArgumentException("A new tests repo cannot go inside a hidden folder (" + part + ").");
+        }
+    }
+
     /** Creates a tests repo from the skeleton with the project's own script. Nothing is pushed. */
     private Path createTestsRepo(String given) throws IOException, InterruptedException {
         Path target = given.isBlank() ? main.root.getParent().resolve("my-product-tests")
                 : (Path.of(given).isAbsolute() ? Path.of(given) : main.root.resolve(given)).normalize();
+        requireSafeNewRepoPath(target);
         Path script = main.root.resolve("new-tests-repo.sh");
         if (!Files.isRegularFile(script)) throw new IllegalStateException("new-tests-repo.sh is missing from " + main.root + ".");
         Process process = new ProcessBuilder("bash", script.toString(), target.toString()).directory(main.root.toFile())

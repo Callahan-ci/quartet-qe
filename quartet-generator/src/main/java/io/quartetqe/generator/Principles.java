@@ -46,6 +46,8 @@ public final class Principles {
     /** Builds a finding from a rule ID. Returns empty when the team has set that rule to off. */
     public Optional<Finding> finding(String ruleId, String location, String message) {
         Rule rule = rules.get(ruleId);
+        // A repo with its own older principles.yaml predates newer security rules. Those apply as blocking rather than failing.
+        if (rule == null && ruleId.startsWith("SEC-")) rule = new Rule("Secure by design", "block");
         if (rule == null) throw new IllegalArgumentException("Rule " + ruleId + " is not defined in principles.yaml");
         if ("off".equals(rule.severity())) return Optional.empty();
         return Optional.of(new Finding(ruleId, rule.principle(),

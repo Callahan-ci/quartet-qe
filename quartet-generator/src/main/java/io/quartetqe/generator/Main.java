@@ -122,7 +122,15 @@ public final class Main {
         if (split > 0 && !Files.exists(Path.of(reference))) {
             return connectors.workItems(reference.substring(0, split)).get(reference.substring(split + 1));
         }
-        return WorkItem.fromFile(Path.of(reference));
+        Path file = Path.of(reference);
+        try {
+            if (Files.exists(file) && !file.toRealPath().startsWith(root.toRealPath())) {
+                throw new IllegalArgumentException("A story file must be inside this repo (" + root + "). Copy it into stories/ first.");
+            }
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Could not read " + reference + ".");
+        }
+        return WorkItem.fromFile(file);
     }
 
     Path reportDir(WorkItem story) {
