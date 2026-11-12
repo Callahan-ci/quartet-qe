@@ -80,12 +80,17 @@ final class ChatSession {
 
     List<Tool> tools() {
         List<Tool> tools = new ArrayList<>();
-        tools.add(Tool.of("quartet_start", "Begin work on a story. Returns the story, any questions about it, the valid test targets and the rules for writing tests. Reloads the project's settings every time, so edits to the context or environment need no restart. To test a public website, pass site and story_text: no files or settings need to be created first.", """
+        tools.add(Tool.of("quartet_start", "Begin work on a story. Returns the story, any questions about it, the valid test targets and the rules for writing tests. Reloads the project's settings every time, so edits to the context or environment need no restart. To test a public website, pass site and story_text: no files or settings need to be created first. The first time in a project it returns setup questions for the user (where the tests live, Jenkins) instead of starting: ask the user, then call quartet_setup.", """
             {"type":"object","properties":{
               "story":{"type":"string","description":"A story file path, or jira:KEY-1, ado:123, github:45, gitlab:7"},
               "story_text":{"type":"string","description":"The story itself, as markdown with an Acceptance criteria list. Quartet saves it in stories/. Use this when the user described what to test and there is no story file."},
               "site":{"type":"string","description":"A public website to test, such as https://www.example.com. Quartet creates the environment for it: a browser target on desktop and phones, an HTTP target, and an allow-list of only that site."}}}""",
                 this::start));
+        tools.add(Tool.of("quartet_setup", "Save the user's answers to the setup questions that quartet_start returned: where the tests live, and whether they want a Jenkins pipeline. Only call this with answers the user gave.", """
+            {"type":"object","required":["jenkins"],"properties":{
+              "tests_repo":{"type":"string","enum":["new","existing","here"],"description":"new: create a new tests repo. existing: use a tests repo the user already has (give path). here: keep the tests in this folder. Needed only when quartet_start asked where the tests should live."},
+              "path":{"type":"string","description":"For new: the folder to create, such as ../my-product-tests. For existing: the folder of the repo."},
+              "jenkins":{"type":"boolean","description":"Whether the user wants a Jenkins pipeline for these tests."}}}""", this::setup));
         for (Tool tool : ContextTools.context(main.context)) tools.add(recorded(tool));
         for (Tool tool : ContextTools.repos(main.context, main.connectors)) tools.add(recorded(tool));
         tools.add(Tool.of("write_test", "Create or replace one test file in this story's package.", """
@@ -146,7 +151,119 @@ final class ChatSession {
         if (story == null) throw new IllegalStateException("Call quartet_start first.");
     }
 
+    private static boolean isFramework(Path root) {
+        return Files.isDirectory(root.resolve("demo-shopflow")) && Files.isDirectory(root.resolve("quartet-core"));
+    }
+
+    /** The bundled sample stories run in this repo. Anything else is new work that needs a home. */
+    private static boolean demoStory(JsonNode args) {
+        return args.path("site").asText("").isBlank() && args.path("story_text").asText("").isBlank()
+                && Path.of(args.path("story").asText("x")).getFileName().toString().matches("SHOP-\\d+.*");
+    }
+
+    /** Applies what the user decided earlier, or returns the questions to ask. Null means carry on. */
+    private JsonNode settingUp(JsonNode args) throws IOException {
+        ObjectNode choices = SetupChoices.read(main.root);
+        boolean framework = isFramework(main.root);
+        boolean demo = demoStory(args);
+        if (choices != null) {
+            String where = choices.path("testsRepo").asText("here");
+            if (!where.equals("here") && !demo) {
+                Path target = main.root.resolve(where).normalize();
+                if (!Files.isRegularFile(target.resolve("quartet.yaml"))) {
+                    throw new IllegalStateException("The tests repo chosen earlier (" + target + ") is missing. Fix testsRepo in "
+                            + SetupChoices.FILE + ", or delete that file to be asked again.");
+                }
+                main = new Main(target, siteEnvironment);
+            }
+            return null;
+        }
+        if (framework && demo) return null;
+
+        ObjectNode out = Json.obj().put("needs_decisions", true);
+        ArrayNode questions = out.putArray("ask_the_user");
+        if (framework) {
+            ObjectNode where = questions.addObject().put("id", "tests_repo").put("question", "Where should these tests live?");
+            ArrayNode options = where.putArray("options");
+            options.addObject().put("value", "new").put("meaning", "A new tests repo next to this one. Recommended: tests belong in their own repo, one per product. Quartet creates it, ready to use.");
+            options.addObject().put("value", "existing").put("meaning", "A tests repo you already have. Ask for its folder.");
+            options.addObject().put("value", "here").put("meaning", "This folder, which is the Quartet QE framework itself. Fine for a trial, but not where real tests belong.");
+        }
+        ObjectNode jenkins = questions.addObject().put("id", "jenkins").put("question", "Do you want a Jenkins pipeline that runs these tests on every branch?");
+        ArrayNode yesNo = jenkins.putArray("options");
+        yesNo.addObject().put("value", "yes").put("meaning", "Quartet writes the Jenkinsfile and creates the job, using the Jenkins settings in connectors.yaml. You will still need to push the repo.");
+        yesNo.addObject().put("value", "no").put("meaning", "No pipeline now. You can add one later with setup-jenkins.");
+        out.put("next", "Ask the user these questions in plain words and wait for their answers. Do not choose for them. Then call quartet_setup with the answers, "
+                + "then call quartet_start again with the same arguments. Nothing has been created yet.");
+        return out;
+    }
+
+    private JsonNode setup(JsonNode args) throws Exception {
+        Path origin = main.root;
+        String where = args.path("tests_repo").asText("");
+        Path target = origin;
+        if (isFramework(origin)) {
+            switch (where) {
+                case "new" -> target = createTestsRepo(args.path("path").asText(""));
+                case "existing" -> {
+                    String given = args.path("path").asText("");
+                    if (given.isBlank()) throw new IllegalArgumentException("Give the folder of the existing tests repo as path.");
+                    target = (Path.of(given).isAbsolute() ? Path.of(given) : origin.resolve(given)).normalize();
+                    if (!Files.isRegularFile(target.resolve("quartet.yaml"))) {
+                        throw new IllegalArgumentException(target + " is not a Quartet QE tests repo (no quartet.yaml). Check the folder, or choose new.");
+                    }
+                }
+                case "here" -> { }
+                default -> throw new IllegalArgumentException("Say where the tests live: tests_repo is new, existing or here.");
+            }
+        }
+        boolean jenkins = args.path("jenkins").asBoolean(false);
+        if (!target.equals(origin)) SetupChoices.write(origin, target.toString(), jenkins);
+        SetupChoices.write(target, "here", jenkins);
+        main = new Main(target, siteEnvironment);
+
+        ObjectNode out = Json.obj().put("saved", true).put("tests_repo", target.toString()).put("jenkins", jenkins);
+        if (jenkins) {
+            ObjectNode result = out.putObject("jenkins_setup");
+            try {
+                result.putArray("done").addAll(toArray(main.ensureJenkins(Map.of())));
+            } catch (Exception e) {
+                result.put("job", "not created yet");
+                result.put("reason", String.valueOf(e.getMessage()));
+                result.put("to_finish", "Add the Jenkins address, user and token to connectors.yaml (JENKINS_URL, JENKINS_USER, JENKINS_TOKEN), "
+                        + "commit and push the tests repo, then run ./quartet-qe setup-jenkins in it. Tell the user this in plain words.");
+                if (Files.exists(target.resolve("Jenkinsfile"))) result.put("jenkinsfile", "present");
+            }
+        }
+        out.put("nothing_committed_or_pushed", true);
+        out.put("next", "Call quartet_start again with the same arguments.");
+        return out;
+    }
+
+    private static ArrayNode toArray(List<String> lines) {
+        ArrayNode array = Json.arr();
+        lines.forEach(array::add);
+        return array;
+    }
+
+    /** Creates a tests repo from the skeleton with the project's own script. Nothing is pushed. */
+    private Path createTestsRepo(String given) throws IOException, InterruptedException {
+        Path target = given.isBlank() ? main.root.getParent().resolve("my-product-tests")
+                : (Path.of(given).isAbsolute() ? Path.of(given) : main.root.resolve(given)).normalize();
+        Path script = main.root.resolve("new-tests-repo.sh");
+        if (!Files.isRegularFile(script)) throw new IllegalStateException("new-tests-repo.sh is missing from " + main.root + ".");
+        Process process = new ProcessBuilder("bash", script.toString(), target.toString()).directory(main.root.toFile())
+                .redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        if (process.waitFor() != 0) {
+            throw new IllegalStateException("Could not create the tests repo at " + target + ": " + output.strip());
+        }
+        return target;
+    }
+
     private JsonNode start(JsonNode args) throws IOException {
+        JsonNode gate = settingUp(args);
+        if (gate != null) return gate;
         String site = args.path("site").asText("").strip();
         if (!site.isBlank()) {
             Path contextDir = main.root.resolve(main.settings.path("context").asText("context"));
@@ -183,6 +300,9 @@ final class ChatSession {
         ArrayNode list = out.putArray("questions");
         questions.forEach(f -> list.add((f.blocking() ? "Must fix: " : "Question: ") + f.location() + ": " + f.message()));
         out.put("existing_tests", files.keySet().toString());
+        out.put("tests_repo", main.root.toString());
+        ObjectNode remembered = SetupChoices.read(main.root);
+        if (remembered != null) out.put("jenkins_wanted", remembered.path("jenkins").asBoolean(false));
         ArrayNode targets = out.putArray("targets");
         main.targets().forEach(targets::add);
         out.put("rules_for_writing_tests", blocked ? "Resolve the blocking questions first." : TestGenerator.systemPrompt(story, main.targets(), main.principles));
@@ -291,6 +411,17 @@ final class ChatSession {
 
         ObjectNode out = Json.obj().put("status", summary.approved() ? "ready_to_merge" : "needs_attention");
         out.put("review_page", main.root.relativize(main.reportDir(item).resolve("review.md")).toString());
+        out.put("tests_repo", main.root.toString());
+        ArrayNode where = out.putArray("files_written");
+        String prefix = main.root.relativize(main.testSourceRoot()) + "/generated/" + item.slug() + "/";
+        written.keySet().forEach(name -> where.add(prefix + name));
+        ArrayNode todo = out.putArray("next_steps_for_the_user");
+        todo.add("Read " + out.path("review_page").asText() + ", then commit the tests and the recordings folder together. Nothing has been committed.");
+        todo.add("Tests replay with no AI: ./gradlew test");
+        ObjectNode chosen = SetupChoices.read(main.root);
+        if (chosen != null && chosen.path("jenkins").asBoolean(false)) {
+            todo.add("Push the repo so Jenkins builds it. If the job was not created yet, run ./quartet-qe setup-jenkins.");
+        }
         out.put("tests_written", summary.written());
         if (run) out.put("passed", summary.passed()).put("failed", summary.failed()).put("skipped", summary.skipped());
         if (faults != null) out.put("planted_bugs_caught_percent", Math.round(faults.detectionRate() * 100));

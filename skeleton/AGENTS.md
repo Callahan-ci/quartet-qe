@@ -11,6 +11,7 @@ The server is configured in `.mcp.json`. Approve it when your tool asks. It expo
 | `quartet_start` | Begin a story: a file in `stories/`, or `jira:KEY-1`, `ado:123`, `github:45`, `gitlab:7` |
 | `context_list`, `context_search`, `context_read` | Read what the team knows: principles, services, contracts, telemetry |
 | `repo_list`, `repo_read` | Read source from repositories listed in `context/repos/repos.yaml` |
+| `quartet_setup` | Save the user's answers to the setup questions: where the tests live, and Jenkins |
 | `quartet_check_environment` | Check that the systems the tests talk to are reachable. Says how to start them if not |
 | `write_test`, `validate_tests` | Write a test file, then check it against the engineering principles |
 | `quartet_finish` | Hand over the tests. Starts an independent review, then runs them |
@@ -18,7 +19,8 @@ The server is configured in `.mcp.json`. Approve it when your tool asks. It expo
 
 ## The order of work
 
-1. Call `quartet_start`. Settings are re-read on every call, so there is never anything to restart. If the story has questions, ask the user to clarify them. If it is blocked, stop and say why.
+1. Call `quartet_start`. The first time in a project it may return `needs_decisions` with questions: where the tests should live (a new tests repo, an existing one, or here) and whether the user wants a Jenkins pipeline. Ask the user in plain words and wait for their answers. Never choose for them, and never create repos or pipelines yourself. Then call `quartet_setup` with their answers and call `quartet_start` again with the same arguments. Quartet remembers the answers in `quartet-setup.yaml`, so nobody is asked twice. Nothing is committed or pushed for them.
+   Settings are re-read on every call, so there is never anything to restart. If the story has questions, ask the user to clarify them. If it is blocked, stop and say why.
    - **A story file or tracker key:** pass `story`.
    - **"Test my site www.example.com":** pass `site` (the web address) and `story_text`. Draft the story from what the user said, as markdown with an "Acceptance criteria" list of checks a person could verify, and show it to the user first. Quartet saves the story and creates the environment itself: a browser on desktop, iPhone and Android phone, plus an HTTP check, allowing only that site. Do not create or edit environment files by hand.
 2. Read the engineering principles, then the contracts and telemetry for the services involved. Quartet refuses to finish until you have.

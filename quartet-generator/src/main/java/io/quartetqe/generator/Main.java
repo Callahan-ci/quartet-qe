@@ -249,22 +249,28 @@ public final class Main {
 
     /** Creates the Jenkins job for this repo, and writes the Jenkinsfile first if the repo has none. */
     private int setupJenkins(Map<String, String> options) throws Exception {
+        ensureJenkins(options).forEach(System.out::println);
+        return 0;
+    }
+
+    /** The steps of Jenkins setup, as lines to show. Throws when the job cannot be created. */
+    java.util.List<String> ensureJenkins(Map<String, String> options) throws Exception {
+        java.util.List<String> lines = new java.util.ArrayList<>();
         Path jenkinsfile = root.resolve("Jenkinsfile");
         if (!Files.exists(jenkinsfile)) {
             try (var in = Main.class.getResourceAsStream("/skeleton/Jenkinsfile")) {
                 if (in == null) throw new IllegalStateException("The Jenkinsfile template is missing from this build.");
                 Files.write(jenkinsfile, in.readAllBytes());
             }
-            System.out.println("Wrote Jenkinsfile. Commit and push it so Jenkins can find it.");
+            lines.add("Wrote Jenkinsfile. Commit and push it so Jenkins can find it.");
         }
-        String message = connectors.ci("jenkins").ensureReady(repoUrl(options));
-        System.out.println(message);
-        System.out.println("Jenkins will build every branch and pull request that has a Jenkinsfile.");
-        return 0;
+        lines.add(connectors.ci("jenkins").ensureReady(repoUrl(options)));
+        lines.add("Jenkins will build every branch and pull request that has a Jenkinsfile.");
+        return lines;
     }
 
     /** The tests repo's address: --repo-url, else this checkout's origin remote with any embedded credentials removed. */
-    private String repoUrl(Map<String, String> options) {
+    String repoUrl(Map<String, String> options) {
         if (options.containsKey("repo-url")) return options.get("repo-url");
         try {
             Process process = new ProcessBuilder("git", "remote", "get-url", "origin").directory(root.toFile()).redirectErrorStream(true).start();

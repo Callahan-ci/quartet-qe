@@ -29,6 +29,7 @@ class ChatSessionTest {
         for (String name : List.of("quartet.yaml", "connectors.yaml", "context", "stories")) copy(REPO.resolve(name), project.resolve(name));
         Files.createDirectories(project.resolve("e2e-tests/src/test/java"));
         Files.createDirectories(project.resolve("e2e-tests/build/test-results/test"));
+        SetupChoices.write(project, "here", false); // the setup questions have their own tests below
         session = new ChatSession(new Main(project, null), project.resolve("build/quartet-host"));
         tools = session.tools();
     }
@@ -241,5 +242,115 @@ class ChatSessionTest {
         assertThatThrownBy(() -> call("quartet_start", Json.obj().put("site", "ftp://example.org").put("story_text", SITE_STORY).toString()))
                 .hasMessageContaining("not a web address");
         assertThatThrownBy(() -> call("quartet_start", "{}")).hasMessageContaining("story_text");
+    }
+
+    private static final String SITE = "{\"site\":\"https://www.example.org\",\"story_text\":" + Json.str(SITE_STORY) + "}";
+
+    @Test
+    void aProjectThatWasNeverAskedGetsTheQuestionsFirstAndNothingIsCreated() throws Exception {
+        Files.delete(project.resolve(SetupChoices.FILE));
+
+        JsonNode reply = call("quartet_start", SITE);
+
+        assertThat(reply.path("needs_decisions").asBoolean()).isTrue();
+        assertThat(reply.path("ask_the_user").toString()).contains("Jenkins").doesNotContain("Where should these tests live");
+        assertThat(reply.path("next").asText()).contains("Do not choose for them").contains("quartet_setup");
+        assertThat(project.resolve("stories/EX-1.md")).doesNotExist();
+        assertThat(project.resolve("context/environments/example-org.yaml")).doesNotExist();
+    }
+
+    @Test
+    void theAnswersAreRememberedSoTheUserIsNeverAskedTwice() throws Exception {
+        Files.delete(project.resolve(SetupChoices.FILE));
+        call("quartet_start", SITE);
+
+        JsonNode saved = call("quartet_setup", "{\"jenkins\":false}");
+        assertThat(saved.path("saved").asBoolean()).isTrue();
+        assertThat(saved.path("nothing_committed_or_pushed").asBoolean()).isTrue();
+        assertThat(Files.readString(project.resolve(SetupChoices.FILE))).contains("testsRepo: here").contains("jenkins: false");
+
+        JsonNode start = call("quartet_start", SITE);
+        assertThat(start.has("needs_decisions")).isFalse();
+        assertThat(start.path("targets").toString()).contains("site-web");
+        assertThat(start.path("jenkins_wanted").asBoolean()).isFalse();
+        assertThat(call("quartet_start", SITE).has("needs_decisions")).isFalse();
+    }
+
+    @Test
+    void wantingJenkinsWritesTheJenkinsfileAndSaysPlainlyWhatIsMissingForTheJob() throws Exception {
+        Files.delete(project.resolve(SetupChoices.FILE));
+
+        JsonNode saved = call("quartet_setup", "{\"jenkins\":true}");
+
+        assertThat(project.resolve("Jenkinsfile")).exists();
+        assertThat(saved.path("jenkins_setup").path("job").asText()).isEqualTo("not created yet");
+        assertThat(saved.path("jenkins_setup").path("reason").asText()).contains("address of the tests repository");
+        assertThat(saved.path("jenkins_setup").path("to_finish").asText()).contains("connectors.yaml").contains("setup-jenkins");
+        assertThat(Files.readString(project.resolve(SetupChoices.FILE))).contains("jenkins: true");
+    }
+
+    /** Makes the temp project look like the framework repo, with a stand-in for the tests repo script. */
+    private void becomeTheFramework() throws IOException {
+        Files.createDirectories(project.resolve("demo-shopflow"));
+        Files.createDirectories(project.resolve("quartet-core"));
+        Files.writeString(project.resolve("new-tests-repo.sh"), """
+            #!/usr/bin/env bash
+            set -e
+            mkdir -p "$1/context" "$1/stories"
+            cp %1$s/quartet.yaml %1$s/connectors.yaml "$1/"
+            cp -R %1$s/context/. "$1/context/"
+            """.formatted(project));
+    }
+
+    @Test
+    void theFrameworkRepoAsksWhereTheTestsLiveAndCreatesANewTestsRepoWhenToldTo() throws Exception {
+        Files.delete(project.resolve(SetupChoices.FILE));
+        becomeTheFramework();
+
+        JsonNode reply = call("quartet_start", SITE);
+        assertThat(reply.path("ask_the_user").toString()).contains("Where should these tests live").contains("\"new\"").contains("\"existing\"").contains("\"here\"");
+
+        Path created = project.resolveSibling(project.getFileName() + "-site-tests");
+        assertThatThrownBy(() -> call("quartet_setup", "{\"jenkins\":false}")).hasMessageContaining("new, existing or here");
+        JsonNode saved = call("quartet_setup", "{\"tests_repo\":\"new\",\"path\":" + Json.str(created.toString()) + ",\"jenkins\":false}");
+        assertThat(saved.path("tests_repo").asText()).isEqualTo(created.toString());
+        assertThat(created.resolve("quartet.yaml")).exists();
+
+        JsonNode start = call("quartet_start", SITE);
+        assertThat(start.path("tests_repo").asText()).isEqualTo(created.toString());
+        assertThat(created.resolve("stories/EX-1.md")).exists();
+        assertThat(created.resolve("context/environments/example-org.yaml")).exists();
+        assertThat(project.resolve("stories/EX-1.md")).as("nothing leaks into the framework repo").doesNotExist();
+        assertThat(Files.readString(project.resolve(SetupChoices.FILE))).contains(created.toString());
+        assertThat(Files.readString(created.resolve(SetupChoices.FILE))).contains("testsRepo: here");
+    }
+
+    @Test
+    void anExistingTestsRepoCanBeChosenAndAWrongFolderIsRefusedClearly() throws Exception {
+        Files.delete(project.resolve(SetupChoices.FILE));
+        becomeTheFramework();
+        Path existing = project.resolveSibling(project.getFileName() + "-existing");
+        copy(project.resolve("quartet.yaml"), existing.resolve("quartet.yaml"));
+        copy(project.resolve("context"), existing.resolve("context"));
+        copy(project.resolve("connectors.yaml"), existing.resolve("connectors.yaml"));
+
+        assertThatThrownBy(() -> call("quartet_setup", "{\"tests_repo\":\"existing\",\"path\":\"/no/such/folder\",\"jenkins\":false}"))
+                .hasMessageContaining("not a Quartet QE tests repo");
+        assertThatThrownBy(() -> call("quartet_setup", "{\"tests_repo\":\"existing\",\"jenkins\":false}"))
+                .hasMessageContaining("Give the folder");
+
+        call("quartet_setup", "{\"tests_repo\":\"existing\",\"path\":" + Json.str(existing.toString()) + ",\"jenkins\":false}");
+        assertThat(call("quartet_start", SITE).path("tests_repo").asText()).isEqualTo(existing.toString());
+    }
+
+    @Test
+    void theBundledSampleStoriesStillRunInTheFrameworkWithoutAnyQuestions() throws Exception {
+        Files.delete(project.resolve(SetupChoices.FILE));
+        becomeTheFramework();
+
+        JsonNode start = call("quartet_start", story("SHOP-142"));
+
+        assertThat(start.has("needs_decisions")).isFalse();
+        assertThat(start.path("story").path("id").asText()).isEqualTo("SHOP-142");
     }
 }

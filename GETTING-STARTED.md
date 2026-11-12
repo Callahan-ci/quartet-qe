@@ -87,6 +87,8 @@ Open the tests repo in a chat tool that supports MCP, such as Claude Code, Claud
 
 > Write tests for stories/MY-STORY.md using Quartet QE.
 
+The first time, Quartet asks you two things: where the tests should live (a new tests repo, one you already have, or this folder), and whether you want a Jenkins pipeline. It remembers your answers in `quartet-setup.yaml`, never asks twice, and never commits or pushes for you. If you want Jenkins, it writes the `Jenkinsfile` and creates the job when your Jenkins settings are in `connectors.yaml` and the repo is pushed. Otherwise it tells you what is missing.
+
 To test a public website, say "Test my site https://www.example.com using Quartet QE" and describe what matters. The AI drafts the story with you, and Quartet saves it and creates the environment for that site (desktop, iPhone and Android phone, allowing only that site), so there is nothing to set up or restart.
 
 For your own system, it must be running first.
