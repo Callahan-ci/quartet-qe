@@ -46,6 +46,11 @@ public final class Connectors {
         default String ensureReady(String repoUrl) {
             return null;
         }
+
+        /** Checks the address and credentials without changing anything. Returns what was found. */
+        default String ping() {
+            throw new UnsupportedOperationException("This CI system has no connection check.");
+        }
     }
 
     private final JsonNode config;
@@ -55,12 +60,22 @@ public final class Connectors {
     }
 
     public static Connectors load(Path file) {
+        return load(file, System.getenv());
+    }
+
+    /** Reads connectors.yaml, filling ${NAME} from the given variables, such as the project's .env on top of the environment. */
+    public static Connectors load(Path file, Map<String, String> env) {
         try {
             if (!Files.exists(file)) return new Connectors(Json.obj());
-            return new Connectors(Environment.interpolate(Json.parseYaml(Files.readString(file)), System.getenv()));
+            return new Connectors(Environment.interpolate(Json.parseYaml(Files.readString(file)), env));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** The settings as they are now, with variables filled in. Used to tell what is configured. */
+    JsonNode config() {
+        return config;
     }
 
     public static Connectors of(JsonNode config) {

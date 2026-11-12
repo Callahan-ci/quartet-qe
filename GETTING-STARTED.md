@@ -128,6 +128,8 @@ Then check it:
 
 ## 5. Tell it about your system
 
+**With the AI in your chat:** say "Help me set up Quartet QE for my product." It asks for each item below in turn (product, URLs, contracts, source code, stories and git access, Jenkins), writes the files, and checks each connection. When it needs a token or password it names the variable and you run `./set-secret.sh NAME` in a terminal, so secrets never go through the chat. The rest of this step shows what it writes, if you would rather edit the files yourself.
+
 Edit the files in `context/`. You can start small and add more as you go.
 
 **Environment.** Copy and edit `context/environments/default.yaml`. List each thing the tests can reach, and which hosts are allowed:

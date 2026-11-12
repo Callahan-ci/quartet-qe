@@ -193,6 +193,29 @@ Differences to know about:
 - Each model step is a round trip through the chat, so a first run is slower than with an API key. Replays are unaffected.
 - Use an API key for unattended runs, such as a pipeline that writes tests for a story. Chat mode needs someone chatting.
 
+## First-time setup, with the AI
+
+A new project needs a few things before its first test: what the product is, the URLs and systems to test, what the AI should know about them, and optionally Jira or Azure DevOps, GitHub or GitLab, and Jenkins. Ask your AI: **"Help me set up Quartet QE for my product."**
+
+It calls `quartet_onboarding`, which returns a checklist of what is done and what is missing, and works through the open items one at a time. For each answer it uses `quartet_configure` to write the right file, then `quartet_verify` to check the connection for real.
+
+| Item | What the AI asks, and what Quartet writes |
+| --- | --- |
+| Product | Its name, owner and a sentence. Written to `context/manifest.yaml` |
+| URLs and systems | Web, API, database and Kafka addresses. Written to the environment file, and only those hosts are allowed. Checked with `verify environment` |
+| Context | An OpenAPI link (downloaded into `context/contracts/`), event schemas, notes on how the system works |
+| Source code | Local folders or GitHub, GitLab and Azure DevOps repos the AI may read |
+| Stories and git access | Jira, Azure DevOps, GitHub or GitLab settings. Checked by reading one real story, or the repo |
+| Jenkins | Its address and user. Checked, then the job is created |
+
+**Secrets never go through the chat.** The AI only ever names a variable, such as `JIRA_TOKEN`. You save the value yourself in a terminal:
+
+```bash
+./set-secret.sh JIRA_TOKEN
+```
+
+The value is typed hidden, is never printed, and goes into `.env`, which git ignores. Quartet reads `.env` for connectors, environments and test runs. `quartet_secrets_status` shows which secrets are saved, by name only. If you paste a token into the chat anyway, Quartet's tools refuse to store it, but your chat tool may have kept it, so rotate it.
+
 ## Quick start
 
 Needs JDK 21. No Docker.

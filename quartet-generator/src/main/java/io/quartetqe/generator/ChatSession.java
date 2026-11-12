@@ -30,6 +30,10 @@ final class ChatSession {
 
     static final String INSTRUCTIONS = """
         Quartet QE writes end-to-end tests from a user story and proves its own work. You are the AI. No API key is needed.
+        If the project is not set up yet (quartet_start or quartet_onboarding says so), set it up first with the user: call quartet_onboarding
+        and work through the open items one at a time, asking only what is missing and writing each answer with quartet_configure.
+        Never ask for a token, password or key in the chat: name the variable and have the user run ./set-secret.sh NAME in a terminal.
+        Check each connection with quartet_verify. Then write the first test.
         Work in this order:
         1. quartet_start with the story (a file path, or jira:KEY-1, ado:123, github:45, gitlab:7). Read the questions it raises.
            If the story is blocked, tell the user what to clarify and stop.
@@ -91,6 +95,7 @@ final class ChatSession {
               "tests_repo":{"type":"string","enum":["new","existing","here"],"description":"new: create a new tests repo. existing: use a tests repo the user already has (give path). here: keep the tests in this folder. Needed only when quartet_start asked where the tests should live."},
               "path":{"type":"string","description":"For new: the folder to create, such as ../my-product-tests. For existing: the folder of the repo."},
               "jenkins":{"type":"boolean","description":"Whether the user wants a Jenkins pipeline for these tests."}}}""", this::setup));
+        tools.addAll(new Onboarding(this::reload).tools());
         for (Tool tool : ContextTools.context(main.context)) tools.add(recorded(tool));
         for (Tool tool : ContextTools.repos(main.context, main.connectors)) tools.add(recorded(tool));
         tools.add(Tool.of("write_test", "Create or replace one test file in this story's package.", """
@@ -149,6 +154,16 @@ final class ChatSession {
 
     private void current() {
         if (story == null) throw new IllegalStateException("Call quartet_start first.");
+    }
+
+    /** Reads the project's files again, so what was just configured or saved is seen without a restart. */
+    private Main reload() {
+        try {
+            main = new Main(main.root, siteEnvironment);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return main;
     }
 
     private static boolean isFramework(Path root) {
@@ -301,6 +316,13 @@ final class ChatSession {
         questions.forEach(f -> list.add((f.blocking() ? "Must fix: " : "Question: ") + f.location() + ": " + f.message()));
         out.put("existing_tests", files.keySet().toString());
         out.put("tests_repo", main.root.toString());
+        List<String> basics = Onboarding.missingBasics(main);
+        if (!basics.isEmpty() && siteEnvironment == null) {
+            ArrayNode incomplete = out.putArray("setup_incomplete");
+            basics.forEach(incomplete::add);
+            out.put("setup_note", "This project is not set up yet (" + basics + "). Call quartet_onboarding and walk the user through it before writing tests. "
+                    + "Never ask for tokens or passwords in chat.");
+        }
         ObjectNode remembered = SetupChoices.read(main.root);
         if (remembered != null) out.put("jenkins_wanted", remembered.path("jenkins").asBoolean(false));
         ArrayNode targets = out.putArray("targets");

@@ -12,8 +12,8 @@ cp -R "$HERE/skeleton/." "$TARGET/"
 cp -R "$HERE/gradle" "$HERE/gradlew" "$HERE/gradlew.bat" "$HERE/connectors.yaml" "$TARGET/"
 cp -R "$HERE/context/engineering-principles" "$HERE/context/playbooks" "$HERE/context/README.md" "$TARGET/context/"
 perl -pi -e "s|__NAME__|$NAME|g; s|__QUARTET_URL__|${URL%.git}|g" "$TARGET/README.md" "$TARGET/settings.gradle.kts"
-cp "$HERE/get-started.sh" "$TARGET/"
-chmod +x "$TARGET/quartet-qe" "$TARGET/gradlew" "$TARGET/get-started.sh"
+cp "$HERE/get-started.sh" "$HERE/set-secret.sh" "$TARGET/"
+chmod +x "$TARGET/quartet-qe" "$TARGET/gradlew" "$TARGET/get-started.sh" "$TARGET/set-secret.sh"
 
 cd "$TARGET"
 git init -q -b main

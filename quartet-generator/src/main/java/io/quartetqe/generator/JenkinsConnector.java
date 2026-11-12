@@ -89,6 +89,12 @@ final class JenkinsConnector implements Connectors.Ci {
         return "Created the Jenkins job " + baseUrl + jobPath;
     }
 
+    @Override
+    public String ping() {
+        JsonNode root = rest.get("/api/json");
+        return "Jenkins at " + baseUrl + " answered and accepted the credentials (" + root.path("mode").asText("ready") + ")";
+    }
+
     private static String folderXml() {
         return "<?xml version='1.1' encoding='UTF-8'?>\n<com.cloudbees.hudson.plugins.folder.Folder plugin=\"cloudbees-folder\"><properties/><folderViews/></com.cloudbees.hudson.plugins.folder.Folder>";
     }

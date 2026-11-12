@@ -80,11 +80,23 @@ connect() {
   say "                 depends on the tool."
   say ""
   say "Then ask the AI, for example:"
+  say "  Help me set up Quartet QE for my product."
   say "  Test my site https://www.example.com using Quartet QE."
   say "  Write tests for stories/MY-STORY.md using Quartet QE."
   say ""
+  say "Setting up asks for your URLs, systems and integrations. When it needs a token or password"
+  say "it names it and you save it yourself, hidden, in this terminal:  ./set-secret.sh NAME"
+  say "Secrets never go through the chat."
+  say ""
   say "The first time, it asks where the tests should live and whether you want Jenkins."
   say ""
+}
+
+secret() {
+  local name
+  printf 'Name of the secret, for example JIRA_TOKEN: '
+  read -r name || return 0
+  [ -n "$name" ] && ./set-secret.sh "$name"
 }
 
 demo()     { say ""; ./demo.sh; }
@@ -115,15 +127,16 @@ menu_framework() {
     say "  1) Watch the demo (no AI key, no Docker)"
     say "  2) See the chat path working (no AI key)"
     say "  3) Set up tests for my product (creates a new tests repo)"
-    say "  4) Connect my chat tool"
-    say "  5) Where is the guide?"
+    say "  4) Connect my chat tool, and set up my product with the AI"
+    say "  5) Save a secret (a token or password), hidden"
+    say "  6) Where is the guide?"
     say "  q) Quit"
     printf '> '
     read -r choice || return 0
     case "$choice" in
-      1) demo ;; 2) chatdemo ;; 3) new_repo ;; 4) connect ;; 5) guide ;;
+      1) demo ;; 2) chatdemo ;; 3) new_repo ;; 4) connect ;; 5) secret ;; 6) guide ;;
       q|Q|"") return 0 ;;
-      *) say "Choose 1 to 5, or q." ;;
+      *) say "Choose 1 to 6, or q." ;;
     esac
     say ""
   done
@@ -132,20 +145,22 @@ menu_framework() {
 menu_tests_repo() {
   while true; do
     say "What would you like to do?"
-    say "  1) Connect my chat tool (no AI key needed)"
-    say "  2) Add an AI key instead (for unattended runs)"
-    say "  3) Set up Jenkins for these tests"
-    say "  4) Check my setup again"
+    say "  1) Connect my chat tool, and set up my product with the AI"
+    say "  2) Save a secret (a token or password), hidden"
+    say "  3) Add an AI key instead (for unattended runs)"
+    say "  4) Set up Jenkins for these tests"
+    say "  5) Check my setup again"
     say "  q) Quit"
     printf '> '
     read -r choice || return 0
     case "$choice" in
       1) connect ;;
-      2) if [ -x ./set-ai-key.sh ]; then ./set-ai-key.sh; else say "set-ai-key.sh is not in this folder."; fi ;;
-      3) ./quartet-qe setup-jenkins ;;
-      4) ./quartet-qe doctor ;;
+      2) secret ;;
+      3) if [ -x ./set-ai-key.sh ]; then ./set-ai-key.sh; else say "set-ai-key.sh is not in this folder."; fi ;;
+      4) ./quartet-qe setup-jenkins ;;
+      5) ./quartet-qe doctor ;;
       q|Q|"") return 0 ;;
-      *) say "Choose 1 to 4, or q." ;;
+      *) say "Choose 1 to 5, or q." ;;
     esac
     say ""
   done

@@ -18,20 +18,7 @@ public final class LlmFactory {
 
     /** Reads settings from a .env file in the working directory, then the real environment, which wins. */
     public static Llm.Client fromEnv() {
-        Map<String, String> merged = new HashMap<>();
-        Path dotEnv = Path.of(".env");
-        if (Files.isRegularFile(dotEnv)) {
-            try {
-                for (String line : Files.readAllLines(dotEnv)) {
-                    int equals = line.indexOf('=');
-                    if (equals > 0 && !line.strip().startsWith("#")) {
-                        merged.put(line.substring(0, equals).strip(), line.substring(equals + 1).strip().replaceAll("^[\"']|[\"']$", ""));
-                    }
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
+        Map<String, String> merged = new HashMap<>(DotEnv.read(Path.of(".env")));
         merged.putAll(System.getenv());
         return fromEnv(merged);
     }

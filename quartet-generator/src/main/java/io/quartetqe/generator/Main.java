@@ -36,8 +36,9 @@ public final class Main {
         this.context = new ContextRepo(root.resolve(settings.path("context").asText("context")));
         this.principles = Principles.load(context.root());
         this.environmentPath = environmentOverride != null ? environmentOverride : settings.path("environment").asText();
-        this.environment = Environment.load(root.resolve(environmentPath), System.getenv());
-        this.connectors = Connectors.load(root.resolve(settings.path("connectors").asText("connectors.yaml")));
+        Map<String, String> variables = io.quartetqe.core.DotEnv.merged(root);
+        this.environment = Environment.load(root.resolve(environmentPath), variables);
+        this.connectors = Connectors.load(root.resolve(settings.path("connectors").asText("connectors.yaml")), variables);
     }
 
     public static void main(String[] args) throws Exception {
@@ -133,7 +134,12 @@ public final class Main {
     }
 
     TestRunner runner() throws IOException {
-        return TestRunner.fromSettings(root).withEnvironment(Map.of("QUARTET_ENV", root.resolve(environmentPath).toString(), "QUARTET_MODE", "auto"));
+        // Tests see the project's .env too. A real environment variable already reaches them, so it is left alone.
+        Map<String, String> variables = new HashMap<>(io.quartetqe.core.DotEnv.read(root.resolve(".env")));
+        variables.keySet().removeAll(System.getenv().keySet());
+        variables.put("QUARTET_ENV", root.resolve(environmentPath).toString());
+        variables.put("QUARTET_MODE", "auto");
+        return TestRunner.fromSettings(root).withEnvironment(variables);
     }
 
     private int checkStory(Map<String, String> options) throws IOException {
