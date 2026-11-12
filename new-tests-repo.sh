@@ -19,13 +19,16 @@ fi
 
 mkdir -p "$TARGET/context"
 cp -R "$HERE/skeleton/." "$TARGET/"
-cp -R "$HERE/gradle" "$HERE/gradlew" "$HERE/gradlew.bat" "$HERE/connectors.yaml" "$TARGET/"
-cp -R "$HERE/context/engineering-principles" "$HERE/context/playbooks" "$HERE/context/README.md" "$TARGET/context/"
-cp "$HERE/get-started.sh" "$HERE/set-secret.sh" "$TARGET/"
+# Only the Gradle wrapper, which every Gradle project carries. No scripts, no copied principles or playbooks,
+# no Jenkinsfile and no connectors file: Quartet provides those and writes the last two when they are wanted.
+mkdir -p "$TARGET/gradle/wrapper"
+cp "$HERE/gradle/wrapper/gradle-wrapper.jar" "$HERE/gradle/wrapper/gradle-wrapper.properties" "$TARGET/gradle/wrapper/"
+cp "$HERE/gradlew" "$HERE/gradlew.bat" "$TARGET/"
 perl -pi -e "s|__NAME__|$NAME|g; s|__QUARTET_URL__|${URL%.git}|g; s|__QUARTET_REF__|$REF|g" "$TARGET/README.md" "$TARGET/settings.gradle.kts" "$TARGET/quartet.yaml"
-chmod +x "$TARGET/quartet-qe" "$TARGET/gradlew" "$TARGET/get-started.sh" "$TARGET/set-secret.sh"
+chmod +x "$TARGET/quartet-qe" "$TARGET/gradlew"
 
 cd "$TARGET"
+./quartet-qe readme >/dev/null 2>&1 || true
 git init -q -b main
 git add -A
-echo "Created $NAME. Next: cd into it and run ./get-started.sh"
+echo "Created $NAME. Next: cd into it and run ./quartet-qe get-started"

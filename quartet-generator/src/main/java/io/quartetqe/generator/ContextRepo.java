@@ -27,14 +27,22 @@ public final class ContextRepo {
     private final List<Chunk> chunks = new ArrayList<>();
     private final Map<String, Integer> documentFrequency = new HashMap<>();
     private final double averageLength;
+    private final Set<String> defaultPaths = new java.util.TreeSet<>();
 
     public ContextRepo(Path root) {
         this.root = root.toAbsolutePath().normalize();
-        try (Stream<Path> paths = Files.walk(this.root)) {
+        try (Stream<Path> paths = Files.isDirectory(this.root) ? Files.walk(this.root) : Stream.<Path>empty()) {
             paths.filter(Files::isRegularFile).filter(ContextRepo::supported).sorted().forEach(this::add);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        // Quartet's own principles and playbooks apply unless the repo has a file of its own at the same path.
+        Defaults.files().forEach((path, content) -> {
+            if (!files.containsKey(path)) {
+                defaultPaths.add(path);
+                add(path, content);
+            }
+        });
         averageLength = chunks.stream().mapToInt(Chunk::length).average().orElse(1);
     }
 
@@ -45,18 +53,25 @@ public final class ContextRepo {
 
     private void add(Path file) {
         try {
-            String relative = root.relativize(file).toString().replace('\\', '/');
-            String content = Files.readString(file);
-            files.put(relative, content);
-            for (String piece : split(content)) {
-                Map<String, Integer> terms = new HashMap<>();
-                tokens(piece + " " + relative).forEach(token -> terms.merge(token, 1, Integer::sum));
-                terms.keySet().forEach(term -> documentFrequency.merge(term, 1, Integer::sum));
-                chunks.add(new Chunk(relative, piece, terms, Math.max(1, terms.values().stream().mapToInt(i -> i).sum())));
-            }
+            add(root.relativize(file).toString().replace('\\', '/'), Files.readString(file));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    private void add(String relative, String content) {
+        files.put(relative, content);
+        for (String piece : split(content)) {
+            Map<String, Integer> terms = new HashMap<>();
+            tokens(piece + " " + relative).forEach(token -> terms.merge(token, 1, Integer::sum));
+            terms.keySet().forEach(term -> documentFrequency.merge(term, 1, Integer::sum));
+            chunks.add(new Chunk(relative, piece, terms, Math.max(1, terms.values().stream().mapToInt(i -> i).sum())));
+        }
+    }
+
+    /** True for a file that comes from Quartet rather than from this repo. */
+    public boolean isDefault(String path) {
+        return defaultPaths.contains(path);
     }
 
     private static List<String> split(String content) {

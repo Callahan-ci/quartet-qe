@@ -23,14 +23,21 @@ public final class Principles {
         this.root = root;
         for (JsonNode principle : root.path("principles")) {
             for (JsonNode rule : principle.path("rules")) {
-                rules.put(rule.path("id").asText(), new Rule(principle.path("name").asText(), rule.path("severity").asText("block")));
+                // YAML reads an unquoted off as the boolean false, so a team that wrote "severity: off" must still get off.
+                JsonNode level = rule.path("severity");
+                String severity = level.isBoolean() ? (level.asBoolean() ? "block" : "off") : level.asText("block");
+                rules.put(rule.path("id").asText(), new Rule(principle.path("name").asText(), severity));
             }
         }
     }
 
     public static Principles load(Path contextRoot) {
+        Path file = contextRoot.resolve("engineering-principles/principles.yaml");
         try {
-            return new Principles(Json.parseYaml(Files.readString(contextRoot.resolve("engineering-principles/principles.yaml"))));
+            // The repo's own file wins. Without one, Quartet's default principles apply.
+            String yaml = Files.isRegularFile(file) ? Files.readString(file) : Defaults.get("engineering-principles/principles.yaml");
+            if (yaml == null) throw new IllegalStateException("No engineering-principles/principles.yaml in the context, and no default to fall back on.");
+            return new Principles(Json.parseYaml(yaml));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

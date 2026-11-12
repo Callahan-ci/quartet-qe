@@ -32,18 +32,22 @@ final class ChatSession {
         Quartet QE writes end-to-end tests from a user story and proves its own work. You are the AI. No API key is needed.
         If the project is not set up yet (quartet_start or quartet_onboarding says so), set it up first with the user: call quartet_onboarding
         and work through the open items one at a time, asking only what is missing and writing each answer with quartet_configure.
-        Never ask for a token, password or key in the chat: name the variable and have the user run ./set-secret.sh NAME in a terminal.
+        Never ask for a token, password or key in the chat: name the variable and have the user run ./quartet-qe secret NAME in a terminal.
         Check each connection with quartet_verify. Then write the first test.
         Be a guide: explain in plain words why each extra (API specs, telemetry, test data, source code, git host, tracker, Jenkins) makes the tests better,
         offer them one at a time using the advice quartet_onboarding returns, and let the user skip any.
+        To test a public website, call quartet_start with site and story_text; nothing needs to be created first.
         Work in this order:
         1. quartet_start with the story (a file path, or jira:KEY-1, ado:123, github:45, gitlab:7). Read the questions it raises.
            If the story is blocked, tell the user what to clarify and stop.
         2. Read the context with context_list, context_read and context_search: the engineering principles, then the
            contracts and telemetry for the services involved. Use repo_read for source when contracts leave a question open.
            Quartet will not accept tests until you have read the principles, the contracts and the telemetry.
-        3. write_test for each test file, then validate_tests, and fix everything it reports.
+        3. Call list_steps and reuse the reusable steps that exist. write_test for each test file. Put any journey more than one test uses
+           (opening the site, signing in, placing an order) into a steps class with write_steps, so tests stay a few lines and nothing is copied.
+           Then validate_tests, and fix everything it reports.
         4. quartet_finish with the traceability matrix. It starts an independent review and then runs the tests.
+           Pass watch=true if the user wants to see the browser as the tests run (a machine with a screen only).
         5. Call quartet_next_step repeatedly. Whenever it returns a step, do exactly what a model would do for that step and
            send it with quartet_answer_step. It returns finished with the review and test results when done.
         6. Give the user the path to the review page, and tell them what needs their attention. A person approves; you never merge.
@@ -192,7 +196,9 @@ final class ChatSession {
                 throw new IllegalStateException("This folder is the Quartet QE framework with a sample shop, and writing to it would change the demo. "
                         + "Ask the user where their tests should live first: quartet_onboarding returns the questions, then call quartet_setup.");
             }
-            return tool.handler().call(args);
+            JsonNode result = tool.handler().call(args);
+            if (tool.name().equals("quartet_configure")) refreshReadme();
+            return result;
         });
     }
 
@@ -305,6 +311,7 @@ final class ChatSession {
         }
         out.put("nothing_committed_or_pushed", true);
         if (!name.isBlank()) out.put("product", name);
+        refreshReadme();
         out.put("next", "Carry on now without waiting to be asked: call quartet_onboarding and work through the next open item. "
                 + "If you were starting a story instead, call quartet_start again with the same arguments.");
         return out;
@@ -364,6 +371,7 @@ final class ChatSession {
         List<Finding> questions = StoryReadiness.check(story, main.principles);
         Scorecard.writeStoryCheck(main.reportDir(story), story, questions);
 
+        refreshReadme();
         ObjectNode out = Json.obj();
         ObjectNode summary = out.putObject("story");
         summary.put("id", story.id()).put("title", story.title());
@@ -427,6 +435,15 @@ final class ChatSession {
         Files.createDirectories(file.getParent());
         Files.writeString(file, text.endsWith("\n") ? text : text + "\n");
         return file.toString();
+    }
+
+    /** Keeps this repo's README current as setup and results change. Never lets a problem there break the work. */
+    private void refreshReadme() {
+        try {
+            Readme.update(main, false);
+        } catch (IOException | RuntimeException e) {
+            // The README is a convenience.
+        }
     }
 
     /** A couple of ways to get more out of Quartet, never more than asked for, and the user can ignore them. */
@@ -511,6 +528,7 @@ final class ChatSession {
         TestGenerator.Result generation = new TestGenerator.Result(written, args.path("traceability"), args.path("not_covered"),
                 rules.check(everything(written, sharedAll), item), review, TraceAudit.check(trace, main.principles, main.context), 1, answered.get(), 0, 0, corrections, Map.copyOf(sharedChanged));
         Scorecard.Summary summary = Scorecard.write(main.reportDir(item), item, main.principles, questions, generation, execution, faults);
+        refreshReadme();
 
         ObjectNode out = Json.obj().put("status", summary.approved() ? "ready_to_merge" : "needs_attention");
         out.put("review_page", main.root.relativize(main.reportDir(item).resolve("review.md")).toString());

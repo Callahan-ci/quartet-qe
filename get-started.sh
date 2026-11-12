@@ -5,9 +5,10 @@
 #   ./get-started.sh --check     only check this machine and build the tool
 #   ./get-started.sh --demo      run the demo (no AI key, no Docker)
 #   ./get-started.sh --chat-demo run the demo of the chat path (no AI key)
-#   ./get-started.sh --connect   how to connect your chat tool
+#   ./quartet-qe get-started --connect   how to connect your chat tool
 set -uo pipefail
-cd "$(dirname "$0")"
+# A tests repo runs this as ./quartet-qe get-started, which sets QUARTET_REPO to the repo. The framework folder runs it in place.
+cd "${QUARTET_REPO:-$(dirname "$0")}"
 
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/quartet-qe"
 STATE="$STATE_DIR/started"
@@ -91,7 +92,7 @@ connect() {
   say "  Write tests for stories/MY-STORY.md using Quartet QE."
   say ""
   say "Setting up asks for your URLs, systems and integrations. When it needs a token or password"
-  say "it names it and you save it yourself, hidden, in this terminal:  ./set-secret.sh NAME"
+  say "it names it and you save it yourself, hidden, in this terminal:  ./quartet-qe secret NAME"
   say "Secrets never go through the chat."
   say ""
   say "The first time, it asks where the tests should live and whether you want Jenkins."
@@ -102,7 +103,7 @@ secret() {
   local name
   printf 'Name of the secret, for example JIRA_TOKEN: '
   read -r name || return 0
-  [ -n "$name" ] && ./set-secret.sh "$name"
+  [ -n "$name" ] && ./quartet-qe secret "$name"
 }
 
 demo()     { say ""; ./demo.sh; }
@@ -163,7 +164,7 @@ menu_tests_repo() {
     case "$choice" in
       1) connect ;;
       2) secret ;;
-      3) if [ -x ./set-ai-key.sh ]; then ./set-ai-key.sh; else say "set-ai-key.sh is not in this folder."; fi ;;
+      3) ./quartet-qe ai-key ;;
       4) ./gradlew test -Pwatch ;;
       5) ./quartet-qe setup-jenkins ;;
       6) ./quartet-qe doctor ;;

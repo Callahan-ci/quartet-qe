@@ -6,4 +6,9 @@ BIN=quartet-generator/build/install/quartet-qe/bin/quartet-qe
 if [ ! -x "$BIN" ] || [ -n "$(find quartet-core quartet-runtime quartet-generator -path '*/src/*' -type f -newer "$BIN" -print -quit 2>/dev/null)" ]; then
   ./gradlew -q :quartet-generator:installDist >&2 || exit 1
 fi
+case "${1:-}" in
+  get-started) shift; exec ./get-started.sh "$@" ;;
+  secret)      shift; exec ./set-secret.sh "$@" ;;
+  ai-key)      shift; exec ./set-ai-key.sh "$@" ;;
+esac
 exec "$BIN" "$@"

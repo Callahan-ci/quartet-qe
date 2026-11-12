@@ -366,7 +366,7 @@ class ChatSessionTest {
             System.setOut(original);
         }
         assertThat(exit).isZero();
-        assertThat(captured.toString()).contains("none configured").contains("chat tool").contains("get-started.sh --connect");
+        assertThat(captured.toString()).contains("none configured").contains("chat tool").contains("quartet-qe get-started --connect");
     }
 
     @Test

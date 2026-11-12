@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Saves one secret (a token or password) to .env in this folder. The value is not shown as you type it,
 # is never printed, and .env is never committed. Quartet QE never asks for secrets in a chat.
-#   ./set-secret.sh JIRA_TOKEN
-cd "$(dirname "$0")" || exit 1
+#   ./quartet-qe secret JIRA_TOKEN
+cd "${QUARTET_REPO:-$(dirname "$0")}" || exit 1
 NAME="${1:-}"
 while [ -z "$NAME" ]; do
   printf 'Name of the secret, for example JIRA_TOKEN: '

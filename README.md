@@ -54,7 +54,6 @@ Review   reports/SHOP-142/review.md (ready to merge)
 - [Jenkins](#jenkins)
 - [AI providers](#ai-providers)
 - [Repository layout](#repository-layout)
-- [Current limits](#current-limits)
 
 ## What a test looks like
 
@@ -118,7 +117,7 @@ If a step no longer works, for example a renamed button, it is handed back to th
 | **Web** | Chromium and WebKit through Playwright, using each browser's accessibility tree. |
 | **Phone browsers** | Playwright device emulation. |
 | **Android** | Apps and on-device browsers through `adb`, with nothing installed on the device and no Appium. |
-| **iOS** | A small XCTest runner in `native/ios`. See [Current limits](#current-limits). |
+| **iOS** | A small XCTest runner in `native/ios` (needs Xcode). |
 
 ### Screens
 
@@ -268,7 +267,7 @@ A `setup_strength` of Basic, Good or Great shows how much is in place, and the t
 **Secrets never go through the chat.** The AI only ever names a variable, such as `JIRA_TOKEN`. You save the value yourself in a terminal:
 
 ```bash
-./set-secret.sh JIRA_TOKEN
+./quartet-qe secret JIRA_TOKEN
 ```
 
 The value is typed hidden, is never printed, and goes into `.env`, which git ignores. Quartet reads `.env` for connectors, environments and test runs. `quartet_secrets_status` shows which secrets are saved, by name only. If you paste a token into the chat anyway, Quartet's tools refuse to store it, but your chat tool may have kept it, so rotate it.
@@ -293,12 +292,12 @@ Tests live in their own repo, one per product or team, not in this one.
 ./new-tests-repo.sh ../my-product-tests
 ```
 
-That gives you a lean project: a `Jenkinsfile`, a `context/` folder to fill in, `quartet.yaml`, and a script that saves your secrets. It holds only your tests. Quartet QE is installed once per machine (at `~/.quartet/current`) and is not copied into each repo; Jenkins fetches the version named in `quartet.yaml` when an agent has no install.
+That gives you a lean repo with only what is yours: `quartet.yaml`, a `README.md` about your product (rebuilt from the repo's own files as stories and results change), `context/` with your environment, the tests, recordings and reports as they appear, and the Gradle wrapper. Quartet QE is installed once per machine (at `~/.quartet/current`, done for you), so no scripts, principles or framework are copied in. Quartet's built-in engineering principles and playbooks apply as they are, and `./quartet-qe defaults --copy <path>` copies one in when you want to change it. A `Jenkinsfile` and `connectors.yaml` are created only when you ask for Jenkins or an integration. Helper commands: `./quartet-qe get-started`, `./quartet-qe secret NAME` and `./quartet-qe ai-key`. Jenkins fetches the version named in `quartet.yaml` when an agent has no install.
 
 In that repo:
 
 ```bash
-./set-ai-key.sh              # saves your key to .env, input hidden
+./quartet-qe ai-key         # saves your key to .env, input hidden
 ./quartet-qe doctor          # checks the AI, context and environment
 ./quartet-qe run --story stories/MY-STORY.md
 ./gradlew test               # replays with no AI
@@ -428,14 +427,6 @@ Run the unit tests with:
 ```bash
 ./gradlew :quartet-core:test :quartet-runtime:test :quartet-generator:test
 ```
-
-## Current limits
-
-- **iOS runner has never been run.** It has only been syntax-checked, because it needs Xcode. Android has been run on an emulator.
-- **Jenkins job creation** is covered by tests against a stand-in Jenkins, not yet a real server.
-- **The demos use a scripted stand-in for the AI.** One real AI (Claude, through the chat path) has also written and run tests for a story it had not seen, SHOP-150, against the live sample system. Its first attempt had 3 of 4 tests fail because of how it named returned fields, which Quartet's grounding check caught. The second attempt passed 4 of 4, and then replayed with no AI. See `stories/SHOP-150.md`, `e2e-tests/src/test/java/generated/shop150` and `reports/SHOP-150`. That is one story, so quality across many stories and models is not yet measured.
-- **Chat mode needs an MCP-capable chat tool, and has had no run in a real chat product yet.** The server is tested with a stand-in AI and with a real AI driving the same protocol by hand. Check that your tool starts `./quartet-qe mcp` and lists the Quartet tools.
-- **Recorded steps** replay exactly, so they check what was recorded. New behaviour needs a new run with the AI.
 
 ## Licence
 

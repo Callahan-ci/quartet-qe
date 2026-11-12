@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs Quartet QE for this tests repo. Try: ./quartet-qe doctor
+# Runs Quartet QE for this tests repo. Try: ./quartet-qe get-started
 # Quartet is installed once per machine (see ./get-started.sh in your Quartet QE folder), not inside this repo.
 cd "$(dirname "$0")"
 QUARTET="${QUARTET_HOME:-$HOME/.quartet/current}"
@@ -8,4 +8,10 @@ if [ ! -x "$QUARTET/bin/quartet-qe" ]; then
   echo "Clone Quartet QE and run ./get-started.sh there, or set QUARTET_HOME." >&2
   exit 1
 fi
+# Helper commands that ship with Quartet, so this repo does not carry their scripts.
+case "${1:-}" in
+  get-started) shift; QUARTET_REPO="$PWD" exec "$QUARTET/scripts/get-started.sh" "$@" ;;
+  secret)      shift; QUARTET_REPO="$PWD" exec "$QUARTET/scripts/set-secret.sh" "$@" ;;
+  ai-key)      shift; QUARTET_REPO="$PWD" exec "$QUARTET/scripts/set-ai-key.sh" "$@" ;;
+esac
 exec "$QUARTET/bin/quartet-qe" "$@"

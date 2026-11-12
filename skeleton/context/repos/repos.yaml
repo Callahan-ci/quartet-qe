@@ -1,2 +1,0 @@
-# Source repositories the agent may read. provider: local, github, gitlab or ado.
-repos: []

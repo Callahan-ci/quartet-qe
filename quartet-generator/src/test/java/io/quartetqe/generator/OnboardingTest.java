@@ -99,12 +99,12 @@ class OnboardingTest {
     @Test
     void aDatabasePasswordIsNamedNeverTypedAndTheUserSavesItWithTheScript() throws Exception {
         assertThatThrownBy(() -> configure("environment_target", "{\"name\":\"orders-db\",\"type\":\"postgres\",\"url\":\"jdbc:postgresql://db.test:5432/orders\",\"password\":\"" + SECRET + "\"}"))
-                .hasMessageContaining("Do not put 'password' in a chat").hasMessageContaining("set-secret.sh").hasMessageNotContaining(SECRET);
+                .hasMessageContaining("Do not put 'password' in a chat").hasMessageContaining("quartet-qe secret").hasMessageNotContaining(SECRET);
         assertThat(Files.readString(project.resolve("context/environments/default.yaml"))).doesNotContain("orders-db");
 
         JsonNode saved = configure("environment_target", "{\"name\":\"orders-db\",\"type\":\"postgres\",\"url\":\"jdbc:postgresql://db.test:5432/orders\",\"user\":\"readonly\",\"password_env\":\"ORDERS_DB_PASSWORD\"}");
         assertThat(saved.path("secrets_to_save").toString()).contains("ORDERS_DB_PASSWORD");
-        assertThat(saved.path("next").asText()).contains("./set-secret.sh ORDERS_DB_PASSWORD");
+        assertThat(saved.path("next").asText()).contains("./quartet-qe secret ORDERS_DB_PASSWORD");
         assertThat(Files.readString(project.resolve("context/environments/default.yaml"))).contains("${ORDERS_DB_PASSWORD}").contains("db.test");
 
         JsonNode before = call("quartet_secrets_status", "{}");
@@ -188,7 +188,7 @@ class OnboardingTest {
             assertThat(project.resolve("context/contracts/openapi/openapi.yaml")).exists();
 
             assertThatThrownBy(() -> configure("contract_from_url", "{\"url\":\"" + base + "/private\"}")).hasMessageContaining("401");
-            assertThatThrownBy(() -> configure("contract_from_url", "{\"url\":\"https://user:pw@example.com/x.yaml\"}")).hasMessageContaining("no username or password");
+            assertThatThrownBy(() -> configure("contract_from_url", "{\"url\":\"https://user:pw@example.com/x.yaml\"}")).hasMessageContaining("password inside the address").hasMessageNotContaining("pw@");
             assertThatThrownBy(() -> configure("contract_from_url", "{\"url\":\"file:///etc/passwd\"}")).hasMessageContaining("http or https");
         } finally {
             server.stop(0);
@@ -236,7 +236,7 @@ class OnboardingTest {
             allow[0] = false;
             JsonNode denied = call("quartet_verify", "{\"what\":\"jenkins\"}");
             assertThat(denied.path("ok").asBoolean()).isFalse();
-            assertThat(denied.path("hint").asText()).contains("set-secret.sh").contains("Never ask them to paste it here");
+            assertThat(denied.path("hint").asText()).contains("quartet-qe secret").contains("Never ask them to paste it here");
         } finally {
             server.stop(0);
         }

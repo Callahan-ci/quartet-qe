@@ -75,7 +75,7 @@ Tests live in their own repo, one per product or team. Do not add your product's
 cd ../my-product-tests
 ```
 
-You get a lean project with a `Jenkinsfile`, a `context/` folder, `quartet.yaml`, and a script that saves your secrets. It holds only your tests: Quartet QE is installed once per machine (at `~/.quartet/current`, done for you) rather than copied into each repo.
+You get a lean repo with only what is yours: `quartet.yaml`, a `README.md` about your product (rebuilt from the repo's own files as stories and results change), `context/` with your environment, the tests, recordings and reports as they appear, and the Gradle wrapper. Quartet QE is installed once per machine (at `~/.quartet/current`, done for you), so no scripts, principles or framework are copied in. Quartet's built-in engineering principles and playbooks apply as they are, and `./quartet-qe defaults --copy <path>` copies one in when you want to change it. A `Jenkinsfile` and `connectors.yaml` are created only when you ask for Jenkins or an integration. Helper commands: `./quartet-qe get-started`, `./quartet-qe secret NAME` and `./quartet-qe ai-key`.
 
 Commit it, and push it to your own git host when you are ready.
 
@@ -106,10 +106,10 @@ Do [step 5](#5-tell-it-about-your-system) first, because the AI reads your conte
 ### Option B: an API key
 
 ```bash
-./set-ai-key.sh
+./quartet-qe ai-key
 ```
 
-It asks which provider you use and saves the key to `.env` with the input hidden. `.env` is never committed. You can also copy `.env.example` to `.env` and edit it by hand:
+It asks which provider you use and saves the key to `.env` with the input hidden. `.env` is never committed. You can also put the values in `.env` by hand:
 
 ```bash
 AI_PROVIDER=anthropic        # anthropic | openai | azure-openai | gemini | openai-compatible
@@ -128,7 +128,7 @@ Then check it:
 
 ## 5. Tell it about your system
 
-**With the AI in your chat:** say "Help me set up Quartet QE for my product." It asks the product's name and where the tests should live, then works through the rest (URLs, contracts, source code, stories and git access, Jenkins), writes the files, and checks each connection. It also tells you why each extra makes the tests better and lets you skip any of them: an OpenAPI spec is the biggest win, then service objectives, test data, source code, a git host, a tracker and Jenkins. When it needs a token or password it names the variable and you run `./set-secret.sh NAME` in a terminal, so secrets never go through the chat. The rest of this step shows what it writes, if you would rather edit the files yourself.
+**With the AI in your chat:** say "Help me set up Quartet QE for my product." It asks the product's name and where the tests should live, then works through the rest (URLs, contracts, source code, stories and git access, Jenkins), writes the files, and checks each connection. It also tells you why each extra makes the tests better and lets you skip any of them: an OpenAPI spec is the biggest win, then service objectives, test data, source code, a git host, a tracker and Jenkins. When it needs a token or password it names the variable and you run `./quartet-qe secret NAME` in a terminal, so secrets never go through the chat. The rest of this step shows what it writes, if you would rather edit the files yourself.
 
 Edit the files in `context/`. You can start small and add more as you go.
 
@@ -314,7 +314,7 @@ A hosted Chromium (browserless, Kernel, a Docker sidecar) can replace the local 
 
 | What you see | What to do |
 | --- | --- |
-| `No AI configured` | Use your chat AI (Option A in step 4), run `./set-ai-key.sh`, or create `.env` from `.env.example` |
+| `No AI configured` | Use your chat AI (Option A in step 4), run `./quartet-qe ai-key` |
 | The chat AI cannot see the Quartet tools | Check the server is approved in your chat tool, and that `./quartet-qe mcp` starts from the repo root. Anything printed to the terminal other than the protocol means a setup problem. Run `./quartet-qe doctor` |
 | `The chat AI did not answer step` | The chat stopped answering. Ask it to call `quartet_next_step` and carry on |
 | `Stopped` followed by a message | Expected problems are reported without a stack trace. The message says what to change |
@@ -332,4 +332,4 @@ Run `./quartet-qe doctor` any time to check your setup.
 - Add the rest of your systems to `context/`, so tests can cross API, event, database and screen in one story.
 - Run `./quartet-qe run --prove` on an important story to see the tests catch planted bugs.
 - Wire `publish` into your team's flow so every story arrives as a pull request with its review attached.
-- Read the [README](README.md) for how the checks work and the current limits.
+- Read the [README](README.md) for how the checks work.

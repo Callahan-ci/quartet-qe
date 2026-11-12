@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Saves your AI key to .env in this repo. The key is not shown as you paste it, and .env is never committed.
-cd "${1:-$(dirname "$0")}" || exit 1
+cd "${QUARTET_REPO:-${1:-$(dirname "$0")}}" || exit 1
 PROVIDER=""
 while [ -z "$PROVIDER" ]; do
   printf 'Provider (anthropic, openai, gemini, azure-openai, openai-compatible): '

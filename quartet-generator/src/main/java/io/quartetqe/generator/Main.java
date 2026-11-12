@@ -70,6 +70,8 @@ public final class Main {
             case "observe" -> main.observe(options);
             case "context-search" -> main.search(options);
             case "mcp" -> main.mcp();
+            case "defaults" -> main.defaults(options);
+            case "readme" -> main.readme(options);
             case "doctor" -> main.doctor();
             default -> {
                 usage();
@@ -95,6 +97,8 @@ public final class Main {
               check-story --story <ref>  List questions about a story before writing tests
               observe --target <name> [--device <name>] [--path /]  Show what the agent sees on a screen
               context-search --query "text"
+              readme [--force]           Rebuild this repo's README from its own files (--force replaces a README you wrote)
+              defaults [--copy <path>]   List Quartet's built-in principles and playbooks, or copy one into this repo to change it
               mcp                        Serve Quartet QE to a chat tool over MCP, so the AI you are chatting with writes the tests (no API key)
               doctor                     Check the AI, context and environment setup
 
@@ -182,6 +186,7 @@ public final class Main {
         }
 
         Scorecard.Summary summary = Scorecard.write(reportDir(story), story, principles, questions, result, execution, faults);
+        Readme.update(this, false);
         System.out.printf("Tests    %d written", summary.written());
         if (run) System.out.printf(": %d passed, %d failed, %d skipped", summary.passed(), summary.failed(), summary.skipped());
         if (faults != null) System.out.printf(". %.0f%% of planted bugs caught", faults.detectionRate() * 100);
@@ -266,10 +271,7 @@ public final class Main {
         java.util.List<String> lines = new java.util.ArrayList<>();
         Path jenkinsfile = root.resolve("Jenkinsfile");
         if (!Files.exists(jenkinsfile)) {
-            try (var in = Main.class.getResourceAsStream("/skeleton/Jenkinsfile")) {
-                if (in == null) throw new IllegalStateException("The Jenkinsfile template is missing from this build.");
-                Files.write(jenkinsfile, in.readAllBytes());
-            }
+            Files.writeString(jenkinsfile, Templates.jenkinsfile());
             lines.add("Wrote Jenkinsfile. Commit and push it so Jenkins can find it.");
         }
         lines.add(connectors.ci("jenkins").ensureReady(repoUrl(options)));
@@ -295,6 +297,31 @@ public final class Main {
     /** Removes a username, password or token from an https address, so none of it reaches Jenkins or a log. */
     static String cleanRemote(String remote) {
         return remote.replaceFirst("^(https?://)[^/@\\s]+@", "$1");
+    }
+
+    private int readme(Map<String, String> options) throws IOException {
+        System.out.println(Readme.update(this, options.containsKey("force")) ? "Updated README.md" : "README.md is already up to date, or is your own (use --force to replace it).");
+        return 0;
+    }
+
+    /** Quartet's built-in files apply as they are. Copying one into the repo is how a team changes it. */
+    int defaults(Map<String, String> options) throws IOException {
+        String path = options.get("copy");
+        if (path == null || "true".equals(path)) {
+            System.out.println("Quartet's built-in context. Used as they are, unless this repo has a file at the same path:");
+            Defaults.files().keySet().forEach(p -> System.out.println("  " + p + (Files.isRegularFile(context.root().resolve(p)) ? "   (this repo changes it)" : "")));
+            System.out.println("To change one: quartet-qe defaults --copy <path>, then edit the copy.");
+            return 0;
+        }
+        String content = Defaults.get(path);
+        if (content == null) throw new IllegalArgumentException("No built-in file at " + path + ". Run quartet-qe defaults to list them.");
+        Path target = context.root().resolve(path).normalize();
+        if (!target.startsWith(context.root())) throw new IllegalArgumentException("The path must be inside the context folder.");
+        if (Files.exists(target)) throw new IllegalStateException(root.relativize(target) + " already exists, so this repo already changes it.");
+        Files.createDirectories(target.getParent());
+        Files.writeString(target, content);
+        System.out.println("Copied to " + root.relativize(target) + ". Edit it: this repo now uses its own version.");
+        return 0;
     }
 
     /** Lets the AI in a chat tool drive Quartet QE over MCP. Standard output carries only the protocol. */
@@ -357,7 +384,7 @@ public final class Main {
         } catch (Llm.LlmException e) {
             if (e.getMessage().startsWith("No AI configured")) {
                 // Not a problem: the AI in a chat tool can do the work, and replaying tests needs no AI.
-                System.out.println("AI           none configured. The AI in your chat tool can write the tests with no key (run ./get-started.sh --connect),");
+                System.out.println("AI           none configured. The AI in your chat tool can write the tests with no key (run ./quartet-qe get-started --connect),");
                 System.out.println("             or add a key for unattended runs (see GETTING-STARTED.md).");
                 return 0;
             }

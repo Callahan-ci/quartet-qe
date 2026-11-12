@@ -27,7 +27,7 @@ If `quartet_start` returns `setup_incomplete`, or the user asks for help setting
 - **Keep going.** After each answer, write it with `quartet_configure`, check it with `quartet_verify`, call `quartet_onboarding` again, and move on to the next open item without waiting to be asked.
 - **Advise.** `quartet_onboarding` returns a ranked `advice` list and a `setup_strength`. For each item, explain in plain words why it makes the tests better (the `why`), offer it one at a time starting with the first, and let the user skip it. The minimum (product and a real system to test) is enough to start. API specs, telemetry, test data, source code, a git host, a story tracker and Jenkins each make the tests better, and each can be added later.
 
-**Never ask for, accept or repeat a token, password or key.** For a secret, name the variable (for example `JIRA_TOKEN`) and tell the user to run `./set-secret.sh JIRA_TOKEN` in a terminal. The value never reaches you. Then call `quartet_verify`. Quartet refuses secrets in `quartet_configure`.
+**Never ask for, accept or repeat a token, password or key.** For a secret, name the variable (for example `JIRA_TOKEN`) and tell the user to run `./quartet-qe secret JIRA_TOKEN` in a terminal. The value never reaches you. Then call `quartet_verify`. Quartet refuses secrets in `quartet_configure`.
 
 ## The order of work
 

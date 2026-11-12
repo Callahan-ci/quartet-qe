@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
  * files from what the user says, and checks each connection for real.
  *
  * Secrets never pass through here. Settings can name a secret ("JIRA_TOKEN") but never contain one: the user
- * saves the value with ./set-secret.sh, which writes it to .env without showing it.
+ * saves the value with ./quartet-qe secret, which writes it to .env without showing it.
  */
 final class Onboarding {
     private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([A-Z][A-Z0-9_]*)(?::-([^}]*))?}");
@@ -59,12 +59,12 @@ final class Onboarding {
         return List.of(
                 Tool.of("quartet_onboarding", "What is set up for this product and what is not, as a checklist. Walk the user through the open items one at a time: ask only what is missing, then use quartet_configure. Call it at the start of setup and again after each change.", "{\"type\":\"object\",\"properties\":{}}",
                         args -> checklist()),
-                Tool.of("quartet_configure", "Write one part of the setup from what the user told you. Sections: product, environment_target (a URL, API, database or Kafka the tests use), repo (source code the AI may read), connector (non-secret settings for Jira, Azure DevOps, GitHub, GitLab or Jenkins), context_file (a note about the system), contract_from_url (download an OpenAPI or schema file). Never put a token or password in values: name the variable (password_env) and have the user run ./set-secret.sh.", """
+                Tool.of("quartet_configure", "Write one part of the setup from what the user told you. Sections: product, environment_target (a URL, API, database or Kafka the tests use), repo (source code the AI may read), connector (non-secret settings for Jira, Azure DevOps, GitHub, GitLab or Jenkins), context_file (a note about the system), contract_from_url (download an OpenAPI or schema file). Never put a token or password in values: name the variable (password_env) and have the user run ./quartet-qe secret.", """
                     {"type":"object","required":["section","values"],"properties":{
-                      "section":{"type":"string","enum":["product","environment_target","repo","connector","context_file","contract_from_url"]},
+                      "section":{"type":"string","enum":["product","environment_target","repo","connector","context_file","contract_from_url","customize_default"]},
                       "values":{"type":"object","description":"product: name, owner, description. environment_target: name, type (api|screen|kafka|postgres|mongo), description, baseUrl or url or brokers, database (mongo), user, user_env, password_env, devices, schemas, context, howToStart. repo: name, provider (local|github|gitlab|ado), path or owner and repo and ref, purpose. connector: kind (jira|azureDevOps|github|gitlab|jenkins) and settings (key and value pairs such as baseUrl, project, owner, repo). context_file: path and content. contract_from_url: url and optional path."}}}""",
                         this::configure),
-                Tool.of("quartet_secrets_status", "Which secrets the setup needs and which are saved, by name only. Values are never shown. Tell the user to run ./set-secret.sh NAME in a terminal for each missing one.", "{\"type\":\"object\",\"properties\":{}}",
+                Tool.of("quartet_secrets_status", "Which secrets the setup needs and which are saved, by name only. Values are never shown. Tell the user to run ./quartet-qe secret NAME in a terminal for each missing one.", "{\"type\":\"object\",\"properties\":{}}",
                         args -> secretsStatus()),
                 Tool.of("quartet_verify", "Check a connection for real: environment (every URL, API, database and broker answers), tracker (read one story: give provider and sample id), code_host (read the repository: give provider), jenkins, or repos. Run it after the user saves a secret.", """
                     {"type":"object","required":["what"],"properties":{
@@ -114,10 +114,10 @@ final class Onboarding {
                 .put("ask", "Do you have an OpenAPI spec (a URL or file), event schemas, or notes about how the system works? Anything about key journeys, test data, or things that must never be tested?")
                 .put("how", "quartet_configure section=contract_from_url or context_file");
 
-        boolean principles = Files.isRegularFile(contextDir(main).resolve("engineering-principles/principles.yaml"));
-        item(items, "principles", "Your engineering principles", principles ? "done" : "todo",
-                principles ? "The default principles are in place. Each can be set to block, warn or off in engineering-principles/principles.yaml." : "No principles file.")
-                .put("ask", "The defaults are the quartet's 12 principles. Do you want to change any rule's strictness?");
+        boolean ownPrinciples = Files.isRegularFile(contextDir(main).resolve("engineering-principles/principles.yaml"));
+        item(items, "principles", "Your engineering principles", "done",
+                ownPrinciples ? "This repo has its own engineering-principles/principles.yaml." : "Quartet's 12 default principles apply, and are not copied into this repo. To change one, copy it with quartet_configure section=customize_default.")
+                .put("ask", "The defaults are the quartet's 12 principles. Do you want to change any rule's strictness? (Most teams start with the defaults.)");
 
         JsonNode repos = Files.isRegularFile(contextDir(main).resolve("repos/repos.yaml")) ? Json.parseYaml(Files.readString(contextDir(main).resolve("repos/repos.yaml"))).path("repos") : Json.arr();
         item(items, "source_repos", "Source code the AI may read", repos.size() > 0 ? "done" : "optional",
@@ -149,11 +149,11 @@ final class Onboarding {
         item(items, "tracker_and_git", "Where stories live, and git access for the tests repo", anyTracker ? "done" : "optional",
                 anyTracker ? "At least one of Jira, Azure DevOps, GitHub or GitLab is configured." : "None yet. Without one you write stories as files, and cannot open pull requests.")
                 .put("ask", "Where do your stories live (Jira, Azure DevOps, GitHub issues, GitLab issues) and where is your code hosted? I will need the project details, and you will save the access token yourself.")
-                .put("how", "quartet_configure section=connector, then ./set-secret.sh, then quartet_verify what=tracker or code_host");
+                .put("how", "quartet_configure section=connector, then ./quartet-qe secret, then quartet_verify what=tracker or code_host");
         item(items, "jenkins", "A Jenkins pipeline", isConfigured(connectors, "jenkins") ? "done" : "optional",
                 isConfigured(connectors, "jenkins") ? "Jenkins is configured." : "Not configured. Quartet creates the job once it has the address and a token.")
                 .put("ask", "Do you use Jenkins? If so, what is its address and the user to log in as? (Skip this if they do not.)")
-                .put("how", "quartet_configure section=connector kind=jenkins, then the user runs ./set-secret.sh JENKINS_TOKEN, then quartet_verify what=jenkins, then quartet_setup jenkins=true to write the Jenkinsfile and create the job");
+                .put("how", "quartet_configure section=connector kind=jenkins, then the user runs ./quartet-qe secret JENKINS_TOKEN, then quartet_verify what=jenkins, then quartet_setup jenkins=true to write the Jenkinsfile and create the job");
 
         boolean ai = variables.containsKey("AI_API_KEY") || variables.containsKey("ANTHROPIC_API_KEY") || variables.containsKey("OPENAI_API_KEY") || variables.containsKey("GEMINI_API_KEY");
         item(items, "ai", "An AI key", "optional", ai ? "A key is saved, for unattended runs." : "No key, and none is needed: you, the AI in this chat, write the tests. A key is only for runs with nobody chatting, such as a pipeline.");
@@ -174,7 +174,7 @@ final class Onboarding {
                 : "Work through the items marked todo, one at a time, asking only what is missing and suggesting a sensible default for each. Write each answer with quartet_configure, then call quartet_onboarding again and keep going. Do not stop to ask whether to continue.");
         out.put("how_to_advise", "Explain each recommendation in plain words using its why, offer them one at a time starting with the first, and let the user skip any. "
                 + "Do not lecture or list everything at once. The minimum is enough to start; the rest makes the tests better.");
-        out.put("rules", "Never ask for or accept a token, password or key in chat. For a secret, name the variable and tell the user to run ./set-secret.sh NAME in a terminal, then use quartet_verify.");
+        out.put("rules", "Never ask for or accept a token, password or key in chat. For a secret, name the variable and tell the user to run ./quartet-qe secret NAME in a terminal, then use quartet_verify.");
         return out;
     }
 
@@ -230,7 +230,7 @@ final class Onboarding {
             addAdvice(advice, "source_repos", 5, "The AI can read the service's code to settle what the contract leaves open, instead of guessing.", "Where does the code live: a local folder, or a GitHub, GitLab or Azure DevOps repository?", "1 minute");
         }
         if (!codeHost || !hasOrigin(main)) {
-            addAdvice(advice, "git", 6, "Quartet can open a pull request with the review page as its description, so people approve the tests in the tool they already use. It needs git access for the tests repo, and a remote to push to.", "Which git host do you use (GitHub, GitLab, Azure DevOps)? Create an empty repo there for these tests; I will take the owner and repo name, and you save the token with ./set-secret.sh.", "5 minutes");
+            addAdvice(advice, "git", 6, "Quartet can open a pull request with the review page as its description, so people approve the tests in the tool they already use. It needs git access for the tests repo, and a remote to push to.", "Which git host do you use (GitHub, GitLab, Azure DevOps)? Create an empty repo there for these tests; I will take the owner and repo name, and you save the token with ./quartet-qe secret.", "5 minutes");
         }
         if (!anyTracker) {
             addAdvice(advice, "tracker", 7, "Stories can be read straight from Jira, Azure DevOps, GitHub or GitLab, and the result is commented back on the story. Without it you write each story as a file.", "Where do your stories live? I will take the project details, and you save the token yourself.", "5 minutes");
@@ -294,7 +294,7 @@ final class Onboarding {
     private List<String> secretNames(Main main, String kind, String key) {
         Path file = main.root.resolve(main.settings.path("connectors").asText("connectors.yaml"));
         try {
-            JsonNode raw = Files.isRegularFile(file) ? Json.parseYaml(Files.readString(file)).path(kind).path(key) : Json.MAPPER.missingNode();
+            JsonNode raw = Json.parseYaml(Files.isRegularFile(file) ? Files.readString(file) : Templates.connectors()).path(kind).path(key);
             Matcher matcher = PLACEHOLDER.matcher(raw.asText(""));
             List<String> names = new ArrayList<>();
             while (matcher.find()) names.add(matcher.group(1));
@@ -314,8 +314,10 @@ final class Onboarding {
         files.add(main.root.resolve(main.settings.path("connectors").asText("connectors.yaml")));
         files.add(main.root.resolve(main.environmentPath));
         for (Path file : files) {
-            if (!Files.isRegularFile(file)) continue;
-            Matcher matcher = PLACEHOLDER.matcher(Files.readString(file));
+            boolean connectors = file.getFileName().toString().equals("connectors.yaml");
+            if (!Files.isRegularFile(file) && !connectors) continue;
+            // Without a connectors file yet, name the secrets its template would use.
+            Matcher matcher = PLACEHOLDER.matcher(Files.isRegularFile(file) ? Files.readString(file) : Templates.connectors());
             while (matcher.find()) {
                 String name = matcher.group(1);
                 if (SECRET_KEY.matcher(name).matches()) names.add(name);
@@ -332,7 +334,7 @@ final class Onboarding {
         out.put("env_file", Files.isRegularFile(main.root.resolve(".env")) ? "present, and ignored by git" : "not created yet");
         out.put("next", missing.isEmpty() ? "Nothing to save. Use quartet_verify to check the connections."
                 : "Ask the user to run these in a terminal in " + main.root + ", one at a time. The value is typed hidden and never shown to you: "
-                + missing.stream().map(n -> "./set-secret.sh " + n).toList() + ". Then call quartet_verify.");
+                + missing.stream().map(n -> "./quartet-qe secret " + n).toList() + ". Then call quartet_verify.");
         return out;
     }
 
@@ -349,7 +351,8 @@ final class Onboarding {
             case "connector" -> connector(main, values);
             case "context_file" -> contextFile(main, values);
             case "contract_from_url" -> contractFromUrl(main, values);
-            default -> throw new IllegalArgumentException("section must be product, environment_target, repo, connector, context_file or contract_from_url.");
+            case "customize_default" -> customizeDefault(main, values);
+            default -> throw new IllegalArgumentException("section must be product, environment_target, repo, connector, context_file, contract_from_url or customize_default.");
         };
     }
 
@@ -357,9 +360,14 @@ final class Onboarding {
     private static void rejectSecrets(JsonNode values) {
         values.fields().forEachRemaining(field -> {
             String key = field.getKey();
+            // An address with a username and password in it is a secret too, whatever the field is called.
+            if (field.getValue().isTextual() && field.getValue().asText().matches("(?s).*://[^/@\\s:]+:[^/@\\s]+@.*")) {
+                throw new IllegalArgumentException("The value for '" + key + "' has a password inside the address. Do not put it in a chat: give the address without it, "
+                        + "name the password with password_env, and ask the user to run ./quartet-qe secret NAME in a terminal.");
+            }
             if (SECRET_KEY.matcher(key).matches() && !key.endsWith("_env") && !key.equals("credentialsId")) {
                 throw new IllegalArgumentException("Do not put '" + key + "' in a chat. Name a variable instead (for a database, use " + key + "_env, such as ORDERS_DB_PASSWORD; "
-                        + "an integration already has one, such as JIRA_TOKEN) and ask the user to run ./set-secret.sh NAME in a terminal. The value then never reaches you.");
+                        + "an integration already has one, such as JIRA_TOKEN) and ask the user to run ./quartet-qe secret NAME in a terminal. The value then never reaches you.");
             }
             if (field.getValue().isObject()) rejectSecrets(field.getValue());
         });
@@ -387,7 +395,7 @@ final class Onboarding {
         if (!manifest.has("read_first")) {
             ArrayNode readFirst = manifest.putArray("read_first");
             for (String candidate : List.of("engineering-principles/principles.yaml", "engineering-principles/quality-engineering.md", "engineering-principles/tech-stack.yaml")) {
-                if (Files.isRegularFile(contextDir.resolve(candidate))) readFirst.add(candidate);
+                if (Files.isRegularFile(contextDir.resolve(candidate)) || Defaults.get(candidate) != null) readFirst.add(candidate);
             }
         }
         if (!manifest.has("services")) manifest.putArray("services");
@@ -474,7 +482,7 @@ final class Onboarding {
         }
         out.putArray("secrets_to_save").addAll(toArray(secrets));
         out.put("next", secrets.isEmpty() ? "Call quartet_verify what=environment to check it answers."
-                : "Ask the user to run " + secrets.stream().map(s -> "./set-secret.sh " + s).toList() + " in a terminal, then call quartet_verify what=environment.");
+                : "Ask the user to run " + secrets.stream().map(s -> "./quartet-qe secret " + s).toList() + " in a terminal, then call quartet_verify what=environment.");
         return out;
     }
 
@@ -529,7 +537,8 @@ final class Onboarding {
         JsonNode settings = values.path("settings");
         if (!settings.isObject() || settings.isEmpty()) throw new IllegalArgumentException("settings is needed, for example {\"baseUrl\": \"https://company.atlassian.net\"}.");
         Path file = main.root.resolve(main.settings.path("connectors").asText("connectors.yaml"));
-        if (!Files.isRegularFile(file)) throw new IllegalStateException(file.getFileName() + " does not exist in this project.");
+        // A repo starts without a connectors file. The first integration creates it, with every setting read from the environment.
+        if (!Files.isRegularFile(file)) Files.writeString(file, Templates.connectors());
         List<String> lines = new ArrayList<>(Files.readAllLines(file));
         List<String> changed = new ArrayList<>();
         Set<String> secretsNeeded = new LinkedHashSet<>();
@@ -540,7 +549,7 @@ final class Onboarding {
             var field = fields.next();
             String key = field.getKey();
             if (SECRET_KEY.matcher(key).matches() && !key.equals("credentialsId")) {
-                throw new IllegalArgumentException("Do not put '" + key + "' in a chat. The user saves it with ./set-secret.sh, and connectors.yaml already reads it from the environment.");
+                throw new IllegalArgumentException("Do not put '" + key + "' in a chat. The user saves it with ./quartet-qe secret, and connectors.yaml already reads it from the environment.");
             }
             String value = field.getValue().asText();
             if (value.contains("\"") || value.contains("\n") || value.contains("${")) throw new IllegalArgumentException("'" + value + "' is not a valid value for " + key + ".");
@@ -577,8 +586,20 @@ final class Onboarding {
         out.putArray("settings_changed").addAll(toArray(changed));
         out.putArray("secrets_to_save").addAll(toArray(new ArrayList<>(secretsNeeded)));
         out.put("next", secretsNeeded.isEmpty() ? "Call quartet_verify to check the connection."
-                : "Ask the user to run " + secretsNeeded.stream().map(s -> "./set-secret.sh " + s).toList() + " in a terminal. The value is hidden and never shown to you. Then call quartet_verify.");
+                : "Ask the user to run " + secretsNeeded.stream().map(s -> "./quartet-qe secret " + s).toList() + " in a terminal. The value is hidden and never shown to you. Then call quartet_verify.");
         return out;
+    }
+
+    /** Copies one of Quartet's built-in files into the repo, so the team can change it. Everything else stays built in. */
+    private JsonNode customizeDefault(Main main, JsonNode values) throws IOException {
+        String path = need(values, "path");
+        String content = Defaults.get(path);
+        if (content == null) throw new IllegalArgumentException("No built-in file at " + path + ". Built in: " + Defaults.files().keySet());
+        Path file = contextDir(main).resolve(path).normalize();
+        if (Files.exists(file)) throw new IllegalStateException(path + " is already in this repo, so it is already changed here.");
+        write(file, content);
+        return Json.obj().put("saved", main.root.relativize(file).toString())
+                .put("next", "Edit the copy with context_file, for example to set a rule to warn or off. This repo now uses its own version of that file.");
     }
 
     private JsonNode contextFile(Main main, JsonNode values) throws IOException {
@@ -706,7 +727,7 @@ final class Onboarding {
 
     private static String hint(String problem) {
         if (problem.contains("401") || problem.contains("403")) {
-            return "The service rejected the credentials or they lack access. Ask the user to check the token has the right permissions and was saved with ./set-secret.sh. Never ask them to paste it here.";
+            return "The service rejected the credentials or they lack access. Ask the user to check the token has the right permissions and was saved with ./quartet-qe secret. Never ask them to paste it here.";
         }
         if (problem.contains("404")) return "Not found. Check the project, repository or id with the user.";
         if (problem.toLowerCase().contains("no 'jira'") || problem.contains("has no '")) return "That integration is not in connectors.yaml. Add its settings with quartet_configure section=connector.";
