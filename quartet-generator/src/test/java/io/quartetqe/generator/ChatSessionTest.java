@@ -370,4 +370,30 @@ class ChatSessionTest {
         assertThat(exit).isZero();
         assertThat(captured.toString()).contains("none configured").contains("chat tool").contains("get-started.sh --connect");
     }
+
+    @Test
+    void settingUpInTheFrameworkFolderAsksWhereTheTestsLiveFirstAndNeverOverwritesTheDemo() throws Exception {
+        Files.delete(project.resolve(SetupChoices.FILE));
+        becomeTheFramework();
+        String demoManifest = Files.readString(project.resolve("context/manifest.yaml"));
+
+        JsonNode checklist = call("quartet_onboarding", "{}");
+        assertThat(checklist.path("needs_decisions").asBoolean()).isTrue();
+        assertThat(checklist.path("why").asText()).contains("sample shop").contains("not to the user's product");
+        assertThat(checklist.path("ask_the_user").toString()).contains("Where should these tests live");
+
+        String values = "{\"section\":\"product\",\"values\":{\"name\":\"Acme\",\"owner\":\"me\"}}";
+        assertThatThrownBy(() -> call("quartet_configure", values)).hasMessageContaining("would change the demo").hasMessageContaining("quartet_setup");
+        assertThat(Files.readString(project.resolve("context/manifest.yaml"))).isEqualTo(demoManifest);
+
+        Path created = project.resolveSibling(project.getFileName() + "-acme-tests");
+        call("quartet_setup", "{\"tests_repo\":\"new\",\"path\":" + Json.str(created.toString()) + ",\"jenkins\":false}");
+
+        JsonNode afterwards = call("quartet_onboarding", "{}");
+        assertThat(afterwards.has("needs_decisions")).isFalse();
+        assertThat(afterwards.path("items").size()).isGreaterThan(5);
+        call("quartet_configure", values);
+        assertThat(Files.readString(created.resolve("context/manifest.yaml"))).contains("Acme");
+        assertThat(Files.readString(project.resolve("context/manifest.yaml"))).as("the demo is untouched").isEqualTo(demoManifest);
+    }
 }

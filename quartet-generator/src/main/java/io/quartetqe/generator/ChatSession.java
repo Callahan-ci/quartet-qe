@@ -95,7 +95,7 @@ final class ChatSession {
               "tests_repo":{"type":"string","enum":["new","existing","here"],"description":"new: create a new tests repo. existing: use a tests repo the user already has (give path). here: keep the tests in this folder. Needed only when quartet_start asked where the tests should live."},
               "path":{"type":"string","description":"For new: the folder to create, such as ../my-product-tests. For existing: the folder of the repo."},
               "jenkins":{"type":"boolean","description":"Whether the user wants a Jenkins pipeline for these tests."}}}""", this::setup));
-        tools.addAll(new Onboarding(this::reload).tools());
+        for (Tool tool : new Onboarding(this::reload).tools()) tools.add(gated(tool));
         for (Tool tool : ContextTools.context(main.context)) tools.add(recorded(tool));
         for (Tool tool : ContextTools.repos(main.context, main.connectors)) tools.add(recorded(tool));
         tools.add(Tool.of("write_test", "Create or replace one test file in this story's package.", """
@@ -156,6 +156,27 @@ final class ChatSession {
         if (story == null) throw new IllegalStateException("Call quartet_start first.");
     }
 
+    /**
+     * In the framework folder, which holds the sample shop, nothing real is set up until the user has said where
+     * their tests live. Otherwise their product details would overwrite the demo's files.
+     */
+    private Tool gated(Tool tool) {
+        return new Tool(tool.def(), args -> {
+            boolean setupTool = tool.name().equals("quartet_onboarding") || tool.name().equals("quartet_configure");
+            if (setupTool && isFramework(main.root) && SetupChoices.read(main.root) == null) {
+                if (tool.name().equals("quartet_onboarding")) {
+                    ObjectNode out = decisions(true);
+                    out.put("why", "This folder is the Quartet QE framework, with a sample shop (ShopFlow) in it. Its environment and context belong to the demo, not to the user's product. "
+                            + "Real tests live in their own repo, so first find out where.");
+                    return out;
+                }
+                throw new IllegalStateException("This folder is the Quartet QE framework with a sample shop, and writing to it would change the demo. "
+                        + "Ask the user where their tests should live first: quartet_onboarding returns the questions, then call quartet_setup.");
+            }
+            return tool.handler().call(args);
+        });
+    }
+
     /** Reads the project's files again, so what was just configured or saved is seen without a restart. */
     private Main reload() {
         try {
@@ -195,6 +216,10 @@ final class ChatSession {
         }
         if (framework && demo) return null;
 
+        return decisions(framework);
+    }
+
+    private static ObjectNode decisions(boolean framework) {
         ObjectNode out = Json.obj().put("needs_decisions", true);
         ArrayNode questions = out.putArray("ask_the_user");
         if (framework) {
@@ -251,7 +276,7 @@ final class ChatSession {
             }
         }
         out.put("nothing_committed_or_pushed", true);
-        out.put("next", "Call quartet_start again with the same arguments.");
+        out.put("next", "If the user asked to set up their product, call quartet_onboarding now. If you were starting a story, call quartet_start again with the same arguments.");
         return out;
     }
 
