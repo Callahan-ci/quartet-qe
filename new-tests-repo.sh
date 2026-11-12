@@ -18,4 +18,4 @@ cd "$TARGET"
 git init -q -b main
 git submodule add -q "$URL" .quartet
 git add -A
-echo "Created $NAME. Next: add your systems to context/, then run ./quartet-qe doctor"
+echo "Created $NAME. Next: add your systems to context/, run ./quartet-qe doctor, then ./quartet-qe setup-jenkins"

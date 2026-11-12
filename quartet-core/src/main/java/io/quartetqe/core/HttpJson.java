@@ -8,7 +8,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /** Thin HTTP wrapper used by AI providers and connectors. */
@@ -16,7 +15,7 @@ public final class HttpJson {
     private static final long MAX_WAIT_MS = 60_000;
     private static final Set<Integer> RETRYABLE = Set.of(408, 429, 500, 502, 503, 504, 529);
 
-    public record Resp(int status, String body, Optional<String> location) {
+    public record Resp(int status, String body) {
         public JsonNode json() {
             return Json.parse(body);
         }
@@ -59,7 +58,7 @@ public final class HttpJson {
                     sleep(wait);
                     continue;
                 }
-                return new Resp(response.statusCode(), response.body(), response.headers().firstValue("location"));
+                return new Resp(response.statusCode(), response.body());
             } catch (IOException e) {
                 if (attempt >= maxRetries) {
                     throw new IllegalStateException(method + " " + stripQuery(url) + " failed: " + e, e);

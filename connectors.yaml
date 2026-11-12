@@ -29,3 +29,7 @@ jenkins:
   job: "${JENKINS_JOB:-team/app/e2e}"
   user: "${JENKINS_USER:-}"
   token: "${JENKINS_TOKEN:-}"
+  # Quartet QE creates this job for you: ./quartet-qe setup-jenkins
+  # Needs the Pipeline: Multibranch, Git and Folders plugins.
+  repoUrl: "${JENKINS_REPO_URL:-}"            # blank: uses this checkout's origin remote
+  credentialsId: "${JENKINS_GIT_CREDENTIALS:-}" # a Jenkins credential, for private repos

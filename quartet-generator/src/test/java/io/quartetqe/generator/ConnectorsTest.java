@@ -27,7 +27,6 @@ class ConnectorsTest {
     private final List<Call> calls = new ArrayList<>();
     private final Map<String, String> replies = new HashMap<>();
     private final Map<String, Integer> statuses = new HashMap<>();
-    private final Map<String, String> locations = new HashMap<>();
 
     @BeforeEach
     void start() throws IOException {
@@ -39,7 +38,6 @@ class ConnectorsTest {
             calls.add(new Call(exchange.getRequestMethod(), uri, exchange.getRequestHeaders().getFirst("authorization") + "|" + exchange.getRequestHeaders().getFirst("private-token"),
                     body.isBlank() ? Json.obj() : Json.parse(body)));
             byte[] reply = replies.getOrDefault(key, "{}").getBytes(StandardCharsets.UTF_8);
-            if (locations.containsKey(key)) exchange.getResponseHeaders().set("Location", locations.get(key));
             exchange.sendResponseHeaders(statuses.getOrDefault(key, 200), reply.length);
             exchange.getResponseBody().write(reply);
             exchange.close();
@@ -171,20 +169,6 @@ class ConnectorsTest {
         var status = ci.status("77");
         assertThat(status.finished()).isTrue();
         assertThat(status.success()).isFalse();
-    }
-
-    @Test
-    void jenkinsFollowsTheQueueToTheBuild() {
-        statuses.put("POST /job/team/job/e2e/buildWithParameters", 201);
-        locations.put("POST /job/team/job/e2e/buildWithParameters", base + "/queue/item/12/");
-        replies.put("GET /queue/item/12/api/json", "{\"executable\":{\"number\":31}}");
-        replies.put("GET /job/team/job/e2e/31/api/json", "{\"building\":false,\"result\":\"SUCCESS\",\"url\":\"u\"}");
-        var jenkins = connectors().ci("jenkins");
-
-        String run = jenkins.trigger("b1", Map.of("STORY", "SHOP 1"));
-        assertThat(calls.get(0).uri()).contains("BRANCH=b1").contains("STORY=SHOP+1");
-        assertThat(calls.get(0).auth()).startsWith(basic("bot", "jk-token"));
-        assertThat(jenkins.status(run).success()).isTrue();
     }
 
     @Test

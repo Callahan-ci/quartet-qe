@@ -61,9 +61,11 @@ public final class Main {
         Main main = new Main(Path.of("").toAbsolutePath(), options.get("environment"));
         return switch (command) {
             case "run" -> main.run(options);
+            case "report" -> main.report(options);
             case "publish" -> main.publish(options);
             case "repair" -> main.repair(options);
             case "check-story" -> main.checkStory(options);
+            case "setup-jenkins" -> main.setupJenkins(options);
             case "observe" -> main.observe(options);
             case "context-search" -> main.search(options);
             case "doctor" -> main.doctor();
@@ -85,6 +87,9 @@ public final class Main {
                                          Run, then open a pull request with the review as its description
 
               repair --file <Test.java> --selector <test filter>   Fix a brittle test without weakening it
+              setup-jenkins [--repo-url <url>]   Create the Jenkins job for this tests repo (and the Jenkinsfile if missing)
+              report [--results <dir>] [--audit <acts.jsonl>] [--out <report.html>] [--pr <number|GH-n>] [--dry-run]
+                                         One page for the last run; --pr posts it as a GitHub comment, --dry-run prints it
               check-story --story <ref>  List questions about a story before writing tests
               observe --target <name> [--device <name>] [--path /]  Show what the agent sees on a screen
               context-search --query "text"
@@ -220,6 +225,8 @@ public final class Main {
         String ciState = "not triggered";
         if (options.containsKey("ci")) {
             Connectors.Ci ci = connectors.ci(options.get("ci"));
+            String ready = ci.ensureReady(repoUrl(options));
+            if (ready != null) System.out.println("CI            " + ready);
             String run = ci.trigger(branch, Map.of("STORY", story.id()));
             long deadline = System.currentTimeMillis() + CI_TIMEOUT_MS;
             Connectors.CiStatus status = ci.status(run);
@@ -238,6 +245,42 @@ public final class Main {
         return outcome.summary().approved() ? 0 : 2;
     }
 
+    /** Creates the Jenkins job for this repo, and writes the Jenkinsfile first if the repo has none. */
+    private int setupJenkins(Map<String, String> options) throws Exception {
+        Path jenkinsfile = root.resolve("Jenkinsfile");
+        if (!Files.exists(jenkinsfile)) {
+            try (var in = Main.class.getResourceAsStream("/skeleton/Jenkinsfile")) {
+                if (in == null) throw new IllegalStateException("The Jenkinsfile template is missing from this build.");
+                Files.write(jenkinsfile, in.readAllBytes());
+            }
+            System.out.println("Wrote Jenkinsfile. Commit and push it so Jenkins can find it.");
+        }
+        String message = connectors.ci("jenkins").ensureReady(repoUrl(options));
+        System.out.println(message);
+        System.out.println("Jenkins will build every branch and pull request that has a Jenkinsfile.");
+        return 0;
+    }
+
+    /** The tests repo's address: --repo-url, else this checkout's origin remote with any embedded credentials removed. */
+    private String repoUrl(Map<String, String> options) {
+        if (options.containsKey("repo-url")) return options.get("repo-url");
+        try {
+            Process process = new ProcessBuilder("git", "remote", "get-url", "origin").directory(root.toFile()).redirectErrorStream(true).start();
+            String out = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).trim();
+            return process.waitFor() == 0 ? cleanRemote(out) : null;
+        } catch (IOException e) {
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
+    }
+
+    /** Removes a username, password or token from an https address, so none of it reaches Jenkins or a log. */
+    static String cleanRemote(String remote) {
+        return remote.replaceFirst("^(https?://)[^/@\\s]+@", "$1");
+    }
+
     private int observe(Map<String, String> options) throws Exception {
         System.out.println(ScreenInspector.describe(environment, options.get("target"), options.get("device"), options.getOrDefault("path", "/")));
         return 0;
@@ -245,6 +288,39 @@ public final class Main {
 
     private int search(Map<String, String> options) {
         context.search(options.get("query"), 5).forEach(hit -> System.out.printf("%.2f %s%n%s%n---%n", hit.score(), hit.path(), hit.text()));
+        return 0;
+    }
+
+    /** One page for the last run: the build's own JUnit XML plus the audit of every act. */
+    private int report(Map<String, String> options) throws IOException {
+        Path results = Path.of(options.getOrDefault("results", settings.path("tests").path("results").asText()));
+        Path module = results.getParent() != null && results.getParent().getParent() != null
+                ? results.getParent().getParent() : root;
+        Path audit = options.containsKey("audit")
+                ? Path.of(options.get("audit"))
+                : module.resolve("build/quartet-report/acts.jsonl");
+        RunReport.Data data = RunReport.read(results, Files.isRegularFile(audit) ? audit : null,
+                module.resolve("build/quartet-report/screenshots"));
+        Path out = options.containsKey("out")
+                ? Path.of(options.get("out"))
+                : module.resolve("build/quartet-report/report.html");
+        RunReport.write(data, out);
+        System.out.println("Report   " + out);
+        if (options.containsKey("dry-run")) {
+            System.out.println();
+            System.out.println(RunReport.markdown(data));
+        } else if (options.containsKey("pr") && !"true".equals(options.get("pr"))) {
+            String number = options.get("pr");
+            try {
+                connectors.workItems("github").comment(number.replaceFirst("^GH-", ""), RunReport.markdown(data));
+            } catch (RuntimeException e) {
+                throw new IllegalStateException("Could not post the GitHub comment: " + e.getMessage()
+                        + ". Set GITHUB_TOKEN for connectors.yaml, or preview the comment with --dry-run.", e);
+            }
+            System.out.println("Comment  posted to GitHub PR " + number);
+        } else if (options.containsKey("pr")) {
+            throw new IllegalArgumentException("--pr needs a number or issue reference, for example --pr 42.");
+        }
         return 0;
     }
 

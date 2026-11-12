@@ -23,6 +23,16 @@ Needs JDK 21. Copy `.env.example` to `.env`, add your AI key, then:
 ./quartet-qe doctor
 ```
 
+## Jenkins
+
+Add your Jenkins address, user and API token to `connectors.yaml`, then run:
+
+```bash
+./quartet-qe setup-jenkins
+```
+
+It creates a multibranch pipeline job for this repo, so Jenkins builds every branch and pull request using the `Jenkinsfile`.
+
 ## Running the tests
 
 ```bash

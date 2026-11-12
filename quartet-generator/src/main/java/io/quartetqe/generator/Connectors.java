@@ -41,6 +41,11 @@ public final class Connectors {
         String trigger(String branch, Map<String, String> parameters);
 
         CiStatus status(String runId);
+
+        /** Makes sure the CI system has a job for the tests repo. Returns a one-line description, or null when nothing is needed. */
+        default String ensureReady(String repoUrl) {
+            return null;
+        }
     }
 
     private final JsonNode config;
@@ -112,7 +117,14 @@ public final class Connectors {
         Rest(String base, Map<String, String> headers) {
             this.base = base.replaceAll("/$", "");
             this.headers = headers;
-            headers.values().forEach(value -> Redactor.register(value.replaceFirst("^(Bearer|Basic) ", "")));
+            headers.values().forEach(value -> {
+                Redactor.register(value.replaceFirst("^(Bearer|Basic) ", ""));
+                // A server can echo the raw token, not just its encoded form, so scrub that too.
+                if (value.startsWith("Basic ")) {
+                    String decoded = new String(Base64.getDecoder().decode(value.substring(6)), StandardCharsets.UTF_8);
+                    Redactor.register(decoded.substring(decoded.indexOf(':') + 1));
+                }
+            });
         }
 
         static String basic(String user, String password) {
@@ -120,9 +132,15 @@ public final class Connectors {
         }
 
         HttpJson.Resp send(String method, String path, Object body) {
+            return sendRaw(method, path, body == null ? null : Json.str(body), body == null ? null : "application/json", Map.of());
+        }
+
+        /** Sends a body exactly as given, with its own content type and any extra headers such as a CSRF crumb. */
+        HttpJson.Resp sendRaw(String method, String path, String body, String contentType, Map<String, String> extra) {
             Map<String, String> all = new LinkedHashMap<>(headers);
-            if (body != null) all.put("content-type", "application/json");
-            HttpJson.Resp response = http.send(method, base + path, all, body == null ? null : Json.str(body), Duration.ofSeconds(60));
+            all.putAll(extra);
+            if (body != null && contentType != null) all.put("content-type", contentType);
+            HttpJson.Resp response = http.send(method, base + path, all, body, Duration.ofSeconds(60));
             if (!response.ok()) {
                 String reply = response.body().length() > 500 ? response.body().substring(0, 500) : response.body();
                 throw new IllegalStateException(method + " " + path.replaceFirst("\\?.*", "") + " returned " + response.status() + ": " + Redactor.clean(reply));
