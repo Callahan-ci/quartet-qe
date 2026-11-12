@@ -15,9 +15,14 @@ import org.w3c.dom.NodeList;
 
 /** Runs tests through the team's own build and reads the JUnit XML it writes. */
 public final class TestRunner {
-    public record TestOutcome(String className, String method, boolean passed, String failure, boolean skipped) {
+    public record TestOutcome(String className, String method, boolean passed, String failure, boolean skipped,
+                              double seconds) {
         public TestOutcome(String className, String method, boolean passed, String failure) {
-            this(className, method, passed, failure, false);
+            this(className, method, passed, failure, false, 0);
+        }
+
+        public TestOutcome(String className, String method, boolean passed, String failure, boolean skipped) {
+            this(className, method, passed, failure, skipped, 0);
         }
     }
 
@@ -79,7 +84,8 @@ public final class TestRunner {
         }
     }
 
-    private List<TestOutcome> readResults() {
+    /** Reads every TEST-*.xml under a results directory, as the build wrote it. */
+    public static List<TestOutcome> readResults(Path resultsDir) {
         List<TestOutcome> outcomes = new ArrayList<>();
         if (!Files.isDirectory(resultsDir)) return outcomes;
         try (Stream<Path> files = Files.list(resultsDir)) {
@@ -90,18 +96,24 @@ public final class TestRunner {
                 for (int i = 0; i < cases.getLength(); i++) {
                     Element testCase = (Element) cases.item(i);
                     String name = testCase.getAttribute("name").replaceAll("\\(.*\\)$", "");
+                    double seconds = testCase.getAttribute("time").isBlank()
+                            ? 0 : Double.parseDouble(testCase.getAttribute("time"));
                     if (testCase.getElementsByTagName("skipped").getLength() > 0) {
-                        outcomes.add(new TestOutcome(testCase.getAttribute("classname"), name, false, null, true));
+                        outcomes.add(new TestOutcome(testCase.getAttribute("classname"), name, false, null, true, seconds));
                         continue;
                     }
                     NodeList failures = testCase.getElementsByTagName("failure");
                     String failure = failures.getLength() == 0 ? null : failures.item(0).getTextContent();
-                    outcomes.add(new TestOutcome(testCase.getAttribute("classname"), name, failure == null, failure, false));
+                    outcomes.add(new TestOutcome(testCase.getAttribute("classname"), name, failure == null, failure, false, seconds));
                 }
             }
         } catch (Exception e) {
             throw new IllegalStateException("Could not read test results: " + e.getMessage(), e);
         }
         return outcomes;
+    }
+
+    private List<TestOutcome> readResults() {
+        return readResults(resultsDir);
     }
 }
