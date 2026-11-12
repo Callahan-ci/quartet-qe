@@ -3,12 +3,28 @@
 pipeline {
     agent any
     options { timestamps() }
+    environment {
+        // Quartet QE is not stored in this repo. Use the agent's install if it has one (QUARTET_HOME),
+        // otherwise the stage below fetches the version named in quartet.yaml into the workspace.
+        QUARTET_HOME = "${env.QUARTET_HOME ?: env.WORKSPACE + '/.quartet-src/quartet-generator/build/install/quartet-qe'}"
+    }
     parameters {
         string(name: 'STORY', defaultValue: '', description: 'Optional. A story to write tests for, such as jira:SHOP-142 or stories/SHOP-142.md')
     }
     stages {
-        stage('Framework') {
-            steps { sh 'git submodule update --init' }
+        stage('Quartet QE') {
+            steps {
+                sh '''
+                    if [ -x "$QUARTET_HOME/bin/quartet-qe" ]; then echo "Using Quartet QE at $QUARTET_HOME"; exit 0; fi
+                    REPO=$(sed -n 's/^quartetRepo: *//p' quartet.yaml)
+                    REF=$(sed -n 's/^quartetVersion: *//p' quartet.yaml)
+                    SRC="$WORKSPACE/.quartet-src"
+                    [ -d "$SRC/.git" ] || { git init -q "$SRC"; git -C "$SRC" remote add origin "$REPO"; }
+                    git -C "$SRC" fetch -q --depth 1 origin "$REF"
+                    git -C "$SRC" checkout -q FETCH_HEAD
+                    (cd "$SRC" && ./gradlew -q :quartet-generator:installDist)
+                '''
+            }
         }
         stage('Write tests for a story') {
             when { expression { params.STORY?.trim() } }

@@ -1,3 +1,6 @@
+# The Quartet QE this repo was written with. CI fetches this version when Quartet is not installed on the agent.
+quartetRepo: __QUARTET_URL__
+quartetVersion: __QUARTET_REF__
 context: context
 environment: context/environments/default.yaml
 connectors: connectors.yaml

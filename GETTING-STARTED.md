@@ -75,7 +75,7 @@ Tests live in their own repo, one per product or team. Do not add your product's
 cd ../my-product-tests
 ```
 
-You get a ready project with the framework pinned as a submodule in `.quartet/`, a `Jenkinsfile`, a `context/` folder, and a script that saves your AI key.
+You get a lean project with a `Jenkinsfile`, a `context/` folder, `quartet.yaml`, and a script that saves your secrets. It holds only your tests: Quartet QE is installed once per machine (at `~/.quartet/current`, done for you) rather than copied into each repo.
 
 Commit it, and push it to your own git host when you are ready.
 

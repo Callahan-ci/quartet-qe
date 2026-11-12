@@ -60,7 +60,13 @@ check_machine() {
 
 build_tool() {
   say "Building the tool. The first time takes a minute or two."
-  if ./quartet-qe doctor; then say ""; return 0; fi
+  if ./quartet-qe doctor; then
+    if [ "$FRAMEWORK" -eq 1 ]; then
+      ./install-quartet.sh && ok "Installed for your tests repos at ~/.quartet/current (they hold only tests)"
+    fi
+    say ""
+    return 0
+  fi
   say ""
   say "The build or the check did not finish. The messages above say what to fix."
   return 1

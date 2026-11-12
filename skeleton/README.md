@@ -55,4 +55,6 @@ Tests replay from `recordings/` and never call the AI. That is the default. Only
 | `recordings/` | Verified steps that replay without AI. Commit these |
 | `reports/` | One review page per story |
 | `Jenkinsfile` | Found automatically by a Jenkins multibranch pipeline |
-| `.quartet/` | The framework, pinned as a git submodule |
+| `quartet.yaml` | Settings, and the Quartet QE version CI uses (`quartetVersion`) |
+
+This repo holds only tests. Quartet QE itself is installed once per machine at `~/.quartet/current` (run `./get-started.sh` in your Quartet QE folder), so nothing from the framework is copied here. Jenkins uses the agent's install if it has one (`QUARTET_HOME`), or fetches the version named in `quartet.yaml`. While Quartet QE is a private repository, give Jenkins read access to it.

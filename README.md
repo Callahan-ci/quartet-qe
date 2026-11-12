@@ -252,7 +252,7 @@ Tests live in their own repo, one per product or team, not in this one.
 ./new-tests-repo.sh ../my-product-tests
 ```
 
-That gives you a project with the framework pinned as a submodule, a `Jenkinsfile`, a `context/` folder to fill in, and a script that saves your AI key.
+That gives you a lean project: a `Jenkinsfile`, a `context/` folder to fill in, `quartet.yaml`, and a script that saves your secrets. It holds only your tests. Quartet QE is installed once per machine (at `~/.quartet/current`) and is not copied into each repo; Jenkins fetches the version named in `quartet.yaml` when an agent has no install.
 
 In that repo:
 

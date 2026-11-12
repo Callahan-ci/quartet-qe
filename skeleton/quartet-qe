@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Runs Quartet QE in this tests repo. Try: ./quartet-qe doctor
+# Runs Quartet QE for this tests repo. Try: ./quartet-qe doctor
+# Quartet is installed once per machine (see ./get-started.sh in your Quartet QE folder), not inside this repo.
 cd "$(dirname "$0")"
-if [ -z "$QUARTET_LOCAL" ] && [ ! -f .quartet/settings.gradle.kts ]; then
-  git submodule update --init >&2 || exit 1
+QUARTET="${QUARTET_HOME:-$HOME/.quartet/current}"
+if [ ! -x "$QUARTET/bin/quartet-qe" ]; then
+  echo "Quartet QE is not installed on this machine (looked in $QUARTET)." >&2
+  echo "Clone Quartet QE and run ./get-started.sh there, or set QUARTET_HOME." >&2
+  exit 1
 fi
-./gradlew -q quartetClasspath >&2 || exit 1
-exec "${JAVA_HOME:+$JAVA_HOME/bin/}java" -cp "$(cat build/quartet.classpath)" io.quartetqe.generator.Main "$@"
+exec "$QUARTET/bin/quartet-qe" "$@"
