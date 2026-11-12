@@ -37,17 +37,31 @@ final class ScreenDriver implements Driver {
         this.surface = surface;
     }
 
+    /** Escalating pause between looks at the screen while it settles. */
+    private static final long[] RETRY_DELAYS_MS = {100, 300, 600, 1_000, 3_000};
+
+    private static void pause(int attempt) throws InterruptedException {
+        int index = Math.min(attempt, RETRY_DELAYS_MS.length - 1);
+        Thread.sleep(RETRY_DELAYS_MS[index]);
+    }
+
     /** Waits for an exact role and name. Throws when it never appears, which starts a hand-off in replay. */
+    @Override
+    public byte[] screenshot() {
+        return surface.screenshot();
+    }
+
     private Surface.Element await(JsonNode args) throws Exception {
         String role = args.path("role").asText();
         String name = args.path("name").asText();
         int occurrence = args.path("occurrence").asInt(0);
         long deadline = System.currentTimeMillis() + WAIT_MS;
+        int attempt = 0;
         while (true) {
             Surface.Element element = surface.observe().find(role, name, occurrence);
             if (element != null) return element;
             if (System.currentTimeMillis() >= deadline) throw new NoSuchElementException("No " + role + " named \"" + name + "\" on screen.");
-            Thread.sleep(150);
+            pause(attempt++);
         }
     }
 
@@ -115,11 +129,12 @@ final class ScreenDriver implements Driver {
     private JsonNode findText(JsonNode args) throws Exception {
         Pattern pattern = Pattern.compile(args.path("pattern").asText());
         long deadline = System.currentTimeMillis() + args.path("timeoutMs").asLong(WAIT_MS);
+        int attempt = 0;
         while (true) {
             Matcher matcher = pattern.matcher(surface.observe().text());
             if (matcher.find()) return Driver.check(Json.obj().put("found", true).put("text", matcher.group()), "found:true");
             if (System.currentTimeMillis() >= deadline) return Driver.check(Json.obj().put("found", false), "found:false");
-            Thread.sleep(150);
+            pause(attempt++);
         }
     }
 

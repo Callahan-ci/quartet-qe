@@ -1,4 +1,5 @@
 {
+  "replayPolicy" : "quartet/1",
   "instruction" : "Place an order for 2 units of SKU-1001 for customer C-42",
   "why" : "A customer checking out is the start of the reservation journey",
   "model" : "scripted",

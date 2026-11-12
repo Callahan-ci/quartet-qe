@@ -2,6 +2,8 @@ package io.quartetqe.runtime;
 
 import io.quartetqe.core.Llm;
 import io.quartetqe.core.LlmFactory;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -49,8 +51,26 @@ public final class AgentExtension implements ParameterResolver, AfterEachCallbac
     public void afterEach(ExtensionContext context) throws Exception {
         TestAgent agent = context.getStore(NS).remove("agent", TestAgent.class);
         if (agent == null) return;
-        if (context.getExecutionException().isEmpty()) agent.testPassed();
-        else agent.testFailed();
+        boolean failed = context.getExecutionException().isPresent();
+        if (failed) saveScreenshots(agent);
+        if (failed) agent.testFailed();
+        else agent.testPassed();
         agent.close();
+    }
+
+    /** The screen under test, saved next to the audit so report.html can link it. */
+    private void saveScreenshots(TestAgent agent) {
+        Path report = Path.of(System.getenv().getOrDefault("QUARTET_REPORT", "build/quartet-report/acts.jsonl"));
+        Path dir = (report.getParent() == null ? Path.of(".") : report.getParent()).resolve("screenshots");
+        agent.failureScreenshots().forEach((target, png) -> {
+            try {
+                Files.createDirectories(dir);
+                Path file = dir.resolve(agent.testId() + "." + target + ".png");
+                Files.write(file, png);
+                System.out.println("[quartet] Failure screenshot: " + file);
+            } catch (IOException e) {
+                System.out.println("[quartet] Could not save a failure screenshot: " + e.getMessage());
+            }
+        });
     }
 }

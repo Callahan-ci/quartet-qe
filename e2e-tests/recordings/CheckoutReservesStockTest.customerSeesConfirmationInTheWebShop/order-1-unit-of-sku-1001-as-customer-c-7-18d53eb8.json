@@ -1,4 +1,5 @@
 {
+  "replayPolicy" : "quartet/1",
   "instruction" : "Order 1 unit of SKU-1001 as customer C-7 through the web shop",
   "why" : "Most customers place their orders through the web shop",
   "model" : "scripted",

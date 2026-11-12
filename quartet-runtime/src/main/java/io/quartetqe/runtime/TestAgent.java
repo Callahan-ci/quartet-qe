@@ -27,6 +27,13 @@ import java.util.function.Supplier;
 public final class TestAgent implements AutoCloseable {
     public enum Mode { AUTO, REPLAY, LIVE }
 
+    /**
+     * Version of the replay policy, part of every recording. Bumping it cold-starts the cache —
+     * which is exactly right when the replay rules change, because a recording made under
+     * different rules could replay differently than its stored checks claim.
+     */
+    static final String REPLAY_POLICY_VERSION = "quartet/1";
+
     private static final Set<String> PERCEPTION = Set.of("screen_observe");
     private static final Set<String> MUTATING = Set.of("kafka_generate", "kafka_produce", "mongo_insert",
             "screen_tap", "screen_type", "screen_choose");
@@ -74,10 +81,25 @@ public final class TestAgent implements AutoCloseable {
         this.headless = headless;
     }
 
+    String testId() {
+        return testId;
+    }
+
+    /** A png per screen the test reached, taken without launching anything new. Empty for tests that never opened a screen. */
+    Map<String, byte[]> failureScreenshots() {
+        Map<String, byte[]> shots = new LinkedHashMap<>();
+        drivers.forEach((target, driver) -> {
+            byte[] png = driver.screenshot();
+            if (png != null) shots.put(target, png);
+        });
+        return shots;
+    }
+
     private record Spec(String template, String instruction, String why, List<String> on, Map<String, JsonNode> vars,
                         List<String> returns) {}
 
-    private record Replay(List<JsonNode> results, int total, String stopReason, boolean complete, ObjectNode scope) {}
+    private record Replay(List<JsonNode> results, int total, String stopReason, boolean complete, ObjectNode scope,
+                          Integer stoppedAt) {}
 
     private static Spec spec(String instruction, Act.Option... options) {
         String why = null;
@@ -105,6 +127,14 @@ public final class TestAgent implements AutoCloseable {
         Map<String, Tool> tools = toolsFor(spec.on());
         Path file = recorder.fileFor(testId, key(spec));
         JsonNode recording = mode == Mode.LIVE ? null : recorder.load(file);
+        if (recording != null && !REPLAY_POLICY_VERSION.equals(recording.path("replayPolicy").asText())) {
+            if (mode == Mode.REPLAY) {
+                throw new AgentActException("Recording is stale: replay policy " + recording.path("replayPolicy").asText()
+                        + ", now " + REPLAY_POLICY_VERSION + " for: " + spec.instruction()
+                        + ". Run ./quartet-qe run to record again under the current policy.");
+            }
+            recording = null;
+        }
 
         Replay replay = recording == null ? null : replay(recording, spec, tools);
         if (replay != null && replay.complete()) {
@@ -117,7 +147,8 @@ public final class TestAgent implements AutoCloseable {
         if (mode == Mode.REPLAY) {
             throw new AgentActException(replay == null
                     ? "No recording for: " + spec.instruction() + ". Tests never call the AI on their own. Run ./quartet-qe run to record, or set QUARTET_MODE=auto."
-                    : "Replay stopped (" + replay.stopReason() + ") for: " + spec.instruction());
+                    : "Replay stopped at recorded step " + (replay.stoppedAt() == null ? "0" : "#" + replay.stoppedAt())
+                            + " (" + replay.stopReason() + ") for: " + spec.instruction());
         }
         return live(spec, tools, file, replay);
     }
@@ -148,16 +179,29 @@ public final class TestAgent implements AutoCloseable {
         }
     }
 
+    /**
+     * Evidence is untrusted quoted text from the model. Before matching, collapse whitespace on
+     * both sides, because a tool result may wrap a line where the quote did not. Matching stays
+     * exact otherwise: a quote must exist in real tool output, or the claim fails.
+     */
     private static String ungroundedEvidence(JsonNode args, List<AgentLoop.Step> steps) {
         if (!args.path("holds").asBoolean(false)) return null;
         if (args.path("evidence").isEmpty()) return "A claim that holds needs evidence quoted from tool results.";
         for (JsonNode quote : args.path("evidence")) {
-            boolean found = steps.stream().anyMatch(step -> !step.error() && step.result().toString().contains(quote.asText()));
-            if (quote.asText().isBlank() || !found) {
+            if (quote.asText().isBlank()) return "Evidence cannot be blank. Quote tool output exactly.";
+            String wanted = normalize(quote.asText());
+            if (wanted.isEmpty()) return "Evidence cannot be blank. Quote tool output exactly.";
+            boolean found = steps.stream().anyMatch(step -> !step.error()
+                    && normalize(step.result().toString()).contains(wanted));
+            if (!found) {
                 return "Evidence not found in any tool result: \"" + quote.asText() + "\". Quote tool output exactly.";
             }
         }
         return null;
+    }
+
+    private static String normalize(String text) {
+        return text.trim().replaceAll("\\s+", " ");
     }
 
     private static Tool getOnly(Tool http) {
@@ -178,24 +222,25 @@ public final class TestAgent implements AutoCloseable {
         List<JsonNode> results = new ArrayList<>();
         int total = recording.path("steps").size();
 
-        for (JsonNode step : recording.path("steps")) {
+        for (int i = 0; i < recording.path("steps").size(); i++) {
+            JsonNode step = recording.path("steps").path(i);
             Tool tool = tools.get(step.path("tool").asText());
-            if (tool == null) return new Replay(results, total, "tool-unavailable", false, scope);
+            if (tool == null) return new Replay(results, total, "tool-unavailable", false, scope, i + 1);
             JsonNode result;
             try {
                 result = tool.handler().call(Binder.resolve(step.path("args"), scope));
             } catch (Exception e) {
-                return new Replay(results, total, "target-not-found", false, scope);
+                return new Replay(results, total, "target-not-found", false, scope, i + 1);
             }
             String expected = step.path("check").asText();
             if (!expected.equals(result.path("replayCheck").asText())) {
                 return new Replay(results, total, "result-mismatch: expected " + expected + ", got "
-                        + result.path("replayCheck").asText(), false, scope);
+                        + result.path("replayCheck").asText(), false, scope, i + 1);
             }
             results.add(result);
             stepsScope.add(result);
         }
-        return new Replay(results, total, null, true, scope);
+        return new Replay(results, total, null, true, scope, null);
     }
 
     private ActResult live(Spec spec, Map<String, Tool> tools, Path file, Replay replay) {
@@ -204,7 +249,9 @@ public final class TestAgent implements AutoCloseable {
         if (!spec.returns().isEmpty()) prompt.append("\nReturn these fields in finish.data: ").append(spec.returns()).append('\n');
         if (replay != null && !prefix.isEmpty()) {
             prompt.append("\nReplay stopped (").append(replay.stopReason()).append(") after ").append(prefix.size())
-                    .append(" of ").append(replay.total()).append(" recorded steps. These already ran. Do not repeat them:\n")
+                    .append(" of ").append(replay.total()).append(" recorded steps.");
+            if (replay.stoppedAt() != null) prompt.append(" The recorded step that stopped is #").append(replay.stoppedAt()).append(" (one-based).");
+            prompt.append(" These already ran. Do not repeat them:\n")
                     .append(Json.pretty(prefix)).append("\nContinue from the current state and check it before acting.\n");
         } else if (replay != null) {
             prompt.append("\nReplay stopped (").append(replay.stopReason()).append(") before completing any step. The recorded path no longer works.\n");
@@ -243,6 +290,7 @@ public final class TestAgent implements AutoCloseable {
         }
 
         ObjectNode recording = Json.obj();
+        recording.put("replayPolicy", REPLAY_POLICY_VERSION);
         recording.put("instruction", spec.template()).put("why", spec.why()).put("model", client.model())
                 .put("summary", outcome.finish().path("summary").asText());
         recording.set("on", Json.MAPPER.valueToTree(spec.on()));

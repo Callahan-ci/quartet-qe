@@ -60,6 +60,11 @@ public interface Surface extends AutoCloseable {
         return Map.of();
     }
 
+    /** A png of this screen, for the report of a failing test. Null when a surface cannot show itself. */
+    default byte[] screenshot() {
+        return null;
+    }
+
     @Override
     default void close() throws Exception {}
 }

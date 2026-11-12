@@ -1,4 +1,5 @@
 {
+  "replayPolicy" : "quartet/1",
   "instruction" : "Read the orders created metric counter",
   "why" : "The business tracks order volume through this counter",
   "model" : "scripted",

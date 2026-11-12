@@ -8,6 +8,11 @@ import java.util.List;
 public interface Driver extends AutoCloseable {
     List<Tool> tools();
 
+    /** A png of the screen under test, for the report of a failing test. Null when there is no screen. */
+    default byte[] screenshot() {
+        return null;
+    }
+
     @Override
     default void close() throws Exception {}
 

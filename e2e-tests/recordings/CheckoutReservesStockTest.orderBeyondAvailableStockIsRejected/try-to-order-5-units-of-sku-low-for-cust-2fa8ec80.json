@@ -1,4 +1,5 @@
 {
+  "replayPolicy" : "quartet/1",
   "instruction" : "Try to order 5 units of SKU-LOW for customer C-42, which exceeds available stock",
   "why" : "Customers must never be sold items that are out of stock",
   "model" : "scripted",

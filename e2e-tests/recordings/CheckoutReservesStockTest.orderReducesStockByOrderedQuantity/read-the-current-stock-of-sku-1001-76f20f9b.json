@@ -1,4 +1,5 @@
 {
+  "replayPolicy" : "quartet/1",
   "instruction" : "Read the current stock of SKU-1001",
   "why" : "Stock levels show whether the reservation really happened",
   "model" : "scripted",

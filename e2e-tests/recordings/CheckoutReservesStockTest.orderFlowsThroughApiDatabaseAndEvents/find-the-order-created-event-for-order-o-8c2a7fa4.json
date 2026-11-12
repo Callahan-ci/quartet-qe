@@ -1,4 +1,5 @@
 {
+  "replayPolicy" : "quartet/1",
   "instruction" : "Find the order created event for order {{orderId}}",
   "why" : "Downstream teams rely on this event to fulfil the order",
   "model" : "scripted",

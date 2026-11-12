@@ -1,4 +1,5 @@
 {
+  "replayPolicy" : "quartet/1",
   "instruction" : "Find order {{orderId}} in the orders database",
   "why" : "A reserved order must survive beyond the request",
   "model" : "scripted",

@@ -13,6 +13,7 @@ import io.quartetqe.core.AgentLoop;
 import io.quartetqe.core.Json;
 import io.quartetqe.core.Llm;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -77,6 +78,12 @@ class TestAgentSafetyTest {
             exchange.getResponseBody().write(body);
             exchange.close();
         });
+        server.createContext("/", exchange -> {
+            byte[] body = "<html><body><h1>Shop</h1><button>Place order</button></body></html>".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
         server.start();
 
         Path context = dir.resolve("context/environments");
@@ -87,7 +94,13 @@ class TestAgentSafetyTest {
             guard: {allowHosts: [127.0.0.1]}
             targets:
               api: {type: api, description: d, baseUrl: "http://127.0.0.1:%d"}
-            """.formatted(server.getAddress().getPort()));
+              site:
+                type: screen
+                description: d
+                baseUrl: "http://127.0.0.1:%d"
+                devices:
+                  desktop: {kind: web, engine: chromium}
+            """.formatted(server.getAddress().getPort(), server.getAddress().getPort()));
         llm = new ScriptLlm();
         agent = agent(envFile, TestAgent.Mode.AUTO);
     }
@@ -118,6 +131,26 @@ class TestAgentSafetyTest {
 
     private ActResult place() {
         return agent.act("Place an order", why("Business reason for the order"), on("api"), returns("status"));
+    }
+
+    @Test
+    void aFailingTestCanShowTheScreenItReached() {
+        llm.add("screen_open", Json.obj().put("path", "/"));
+        llm.add(AgentLoop.FINISH, finish(Json.obj()));
+        agent.act("Open the site home page", why("arrivals"), on("site"));
+
+        Map<String, byte[]> shots = agent.failureScreenshots();
+        assertThat(shots).containsKey("site");
+        assertThat(shots.get("site")).startsWith(new byte[] {-119, 80, 78, 71, 13});
+    }
+
+    @Test
+    void aTestThatNeverOpenedAScreenAsksForNoScreenshotAndLaunchesNoBrowser() {
+        llm.add("http_request", get());
+        llm.add(AgentLoop.FINISH, finish(Json.obj().put("status", "RESERVED")));
+        agent.act("Read the order", why("status is visible"), on("api"), returns("status"));
+
+        assertThat(agent.failureScreenshots()).isEmpty();
     }
 
     @Test
@@ -181,6 +214,49 @@ class TestAgentSafetyTest {
         assertThatThrownBy(() -> strict.act("Place an order", why("Business reason for the order"), on("api")))
                 .isInstanceOf(AgentActException.class).hasMessageContaining("No recording for");
         assertThat(llm.prompts).isEmpty();
+    }
+
+    @Test
+    void aRecordingUnderAnOldReplayPolicyIsStaleAndIsReRecorded() throws IOException {
+        llm.add("http_request", post());
+        llm.add(AgentLoop.FINISH, finish(Json.obj().put("status", "RESERVED")));
+        place();
+        agent.testPassed();
+        Files.walk(dir.resolve("cache")).filter(p -> p.toString().endsWith(".json")).forEach(p -> {
+            try {
+                Files.writeString(p, Files.readString(p).replaceFirst("\"replayPolicy\" : \"quartet/1\",", "\"replayPolicy\" : \"quartet/0\","));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+
+        TestAgent strict = agent(dir.resolve("context/environments/t.yaml"), TestAgent.Mode.REPLAY);
+        assertThatThrownBy(() -> strict.act("Place an order", why("Business reason for the order"), on("api"), returns("status")))
+                .isInstanceOf(AgentActException.class).hasMessageContaining("Recording is stale").hasMessageContaining("replay policy quartet/0");
+
+        llm.add("http_request", post());
+        llm.add(AgentLoop.FINISH, finish(Json.obj().put("status", "RESERVED")));
+        int promptsBefore = llm.prompts.size();
+        ActResult live = agent(dir.resolve("context/environments/t.yaml"), TestAgent.Mode.AUTO)
+                .act("Place an order", why("Business reason for the order"), on("api"), returns("status"));
+        assertThat(live.source()).isNotEqualTo(ActResult.Source.REPLAYED);
+        assertThat(llm.prompts.size()).isGreaterThan(promptsBefore);
+    }
+
+    @Test
+    void evidenceThatWrappedAcrossLinesStillCountsAsGrounded() throws IOException {
+        server.createContext("/wrapped", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            byte[] body = "{\"note\":\"Order reserved      for customer C-42\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        llm.add("http_request", Json.obj().put("method", "GET").put("path", "/wrapped"));
+        llm.add(AgentLoop.FINISH, Json.obj().put("holds", true)
+                .set("evidence", Json.arr().add("Order reserved for customer C-42")));
+
+        agent.verify("The order is reserved", why("Customers expect a reserved order"), on("api"));
     }
 
     @Test

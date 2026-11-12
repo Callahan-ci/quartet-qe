@@ -28,6 +28,7 @@ final class BrowserSurface implements Surface {
 
     private final String baseUrl;
     private final String engine;
+    private final String cdpUrl;
     private final Preset preset;
     private final boolean headless;
     private final Predicate<String> allowedHost;
@@ -37,17 +38,42 @@ final class BrowserSurface implements Surface {
     BrowserSurface(String baseUrl, JsonNode device, boolean headless, Predicate<String> allowedHost) {
         this.baseUrl = baseUrl.replaceAll("/$", "");
         this.engine = device.path("engine").asText("chromium");
+        this.cdpUrl = blankToNull(device.path("cdpUrl").asText(null));
         this.preset = PRESETS.get(device.path("preset").asText("desktop"));
         if (preset == null) throw new IllegalArgumentException("Unknown device preset. Use one of " + PRESETS.keySet());
         this.headless = headless;
         this.allowedHost = allowedHost;
     }
 
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
+    /** A png of the page as it stands, for the report of a failing test. Never launches a browser. */
+    @Override
+    public byte[] screenshot() {
+        synchronized (this) {
+            return page == null ? null : page.screenshot(new Page.ScreenshotOptions());
+        }
+    }
+
     private synchronized Page page() {
         if (page != null) return page;
         playwright = Playwright.create();
         BrowserType type = engine.equals("webkit") ? playwright.webkit() : playwright.chromium();
-        Browser browser = type.launch(new BrowserType.LaunchOptions().setHeadless(headless));
+        Browser browser;
+        if (cdpUrl != null) {
+            // A hosted Chromium (browserless, Kernel, a docker sidecar) is one setting.
+            // The host must be allow-listed like any target.
+            if (!engine.equals("chromium")) throw new IllegalArgumentException("cdpUrl needs the chromium engine.");
+            String host = URI.create(cdpUrl).getHost();
+            if (host == null || !allowedHost.test(host)) {
+                throw new IllegalArgumentException("cdpUrl host is outside guard.allowHosts: " + cdpUrl);
+            }
+            browser = type.connectOverCDP(cdpUrl);
+        } else {
+            browser = type.launch(new BrowserType.LaunchOptions().setHeadless(headless));
+        }
         Browser.NewContextOptions options = new Browser.NewContextOptions()
                 .setViewportSize(preset.width(), preset.height())
                 .setDeviceScaleFactor(preset.scale())

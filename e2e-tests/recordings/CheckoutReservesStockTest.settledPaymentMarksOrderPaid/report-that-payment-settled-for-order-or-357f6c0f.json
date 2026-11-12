@@ -1,4 +1,5 @@
 {
+  "replayPolicy" : "quartet/1",
   "instruction" : "Report that payment settled for order {{orderId}}",
   "why" : "Settlement is how the order learns it has been paid",
   "model" : "scripted",

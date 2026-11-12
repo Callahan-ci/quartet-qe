@@ -1,4 +1,5 @@
 {
+  "replayPolicy" : "quartet/1",
   "instruction" : "Wait until order {{orderId}} is shown as PAID",
   "why" : "Fulfilment only starts once an order is paid",
   "model" : "scripted",
