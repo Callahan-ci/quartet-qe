@@ -341,12 +341,18 @@ public final class Main {
         return 0;
     }
 
-    private int doctor() {
+    int doctor() {
         System.out.println("Context      " + context.list().size() + " files, " + principles.names().size() + " principles");
         System.out.println("Environment  " + environment.name() + ", targets " + targets());
         try {
             System.out.println("AI           " + LlmFactory.fromEnv().model());
         } catch (Llm.LlmException e) {
+            if (e.getMessage().startsWith("No AI configured")) {
+                // Not a problem: the AI in a chat tool can do the work, and replaying tests needs no AI.
+                System.out.println("AI           none configured. The AI in your chat tool can write the tests with no key (run ./get-started.sh --connect),");
+                System.out.println("             or add a key for unattended runs (see GETTING-STARTED.md).");
+                return 0;
+            }
             System.out.println("AI           " + e.getMessage());
             return 1;
         }

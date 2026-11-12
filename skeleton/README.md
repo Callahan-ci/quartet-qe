@@ -2,6 +2,8 @@
 
 End-to-end tests written by [Quartet QE](__QUARTET_URL__) and reviewed by people.
 
+Run `./get-started.sh` for a guided check and menu.
+
 ## How it works
 
 1. **Give it context.** Describe your systems in `context/`.

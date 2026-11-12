@@ -10,4 +10,5 @@ jobs:
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: "21"}
       - uses: gradle/actions/setup-gradle@v4
+      - run: bash -n get-started.sh && ./get-started.sh --check
       - run: ./gradlew :quartet-core:test :quartet-runtime:test :quartet-generator:test --console=plain

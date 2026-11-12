@@ -353,4 +353,21 @@ class ChatSessionTest {
         assertThat(start.has("needs_decisions")).isFalse();
         assertThat(start.path("story").path("id").asText()).isEqualTo("SHOP-142");
     }
+
+    @Test
+    void doctorTreatsAMissingAiKeyAsInformationBecauseTheChatPathNeedsNone() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(List.of("AI_PROVIDER", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY",
+                "QUARTET_HOST_DIR").stream().allMatch(name -> System.getenv(name) == null) && !Files.exists(Path.of(".env")));
+        java.io.ByteArrayOutputStream captured = new java.io.ByteArrayOutputStream();
+        java.io.PrintStream original = System.out;
+        System.setOut(new java.io.PrintStream(captured, true));
+        int exit;
+        try {
+            exit = new Main(project, null).doctor();
+        } finally {
+            System.setOut(original);
+        }
+        assertThat(exit).isZero();
+        assertThat(captured.toString()).contains("none configured").contains("chat tool").contains("get-started.sh --connect");
+    }
 }

@@ -18,6 +18,16 @@ Give it context about your systems and a story. It writes the tests for your API
 4. **You review.** One page, with anything that needs your attention at the top.
 
 ```bash
+git clone https://github.com/goughliam1813/quartet-qe.git
+cd quartet-qe
+./get-started.sh
+```
+
+`get-started.sh` checks your machine, builds the tool, and offers a menu: watch the demo, connect your chat tool, or set up tests for your own product. It remembers that you have been before.
+
+Or run it on a story directly:
+
+```bash
 ./quartet-qe run --story stories/SHOP-142.md
 ```
 
@@ -30,7 +40,7 @@ Review   reports/SHOP-142/review.md (ready to merge)
 
 ## Contents
 
-- [Get started](GETTING-STARTED.md) (a step-by-step guide, about 15 minutes)
+- [Get started](GETTING-STARTED.md): run `./get-started.sh`, or follow the step-by-step guide (about 15 minutes)
 - [What a test looks like](#what-a-test-looks-like)
 - [How it works](#how-it-works)
 - [What it can test](#what-it-can-test)

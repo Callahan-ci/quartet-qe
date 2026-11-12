@@ -2,6 +2,8 @@
 
 This guide takes you from a fresh clone to tests for your own product, with a pipeline that runs them. It takes about 15 minutes to see the demo, and an afternoon to point it at your own system.
 
+The fastest way in: clone the repo and run `./get-started.sh`. It checks your machine, builds the tool, and offers a menu (the demo, connecting your chat tool, setting up tests for your product). The rest of this guide explains each step in detail.
+
 ## What you need
 
 | Need | For | Check |
