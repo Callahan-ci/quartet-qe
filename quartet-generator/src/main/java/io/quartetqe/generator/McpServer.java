@@ -76,7 +76,7 @@ final class McpServer {
         String asked = params.path("protocolVersion").asText(LATEST);
         ObjectNode out = Json.obj().put("protocolVersion", SUPPORTED.contains(asked) ? asked : LATEST);
         out.putObject("capabilities").putObject("tools");
-        out.putObject("serverInfo").put("name", "quartet-qe").put("version", "0.1.0");
+        out.putObject("serverInfo").put("name", "quartet-qe").put("version", version());
         out.put("instructions", instructions);
         return out;
     }
@@ -123,5 +123,11 @@ final class McpServer {
         out.set("id", id == null ? Json.MAPPER.nullNode() : id);
         out.putObject("error").put("code", code).put("message", message);
         return out;
+    }
+
+    /** The release this was built as, read from the jar. "dev" when run from a checkout without one. */
+    static String version() {
+        String v = McpServer.class.getPackage() == null ? null : McpServer.class.getPackage().getImplementationVersion();
+        return v == null || v.isBlank() ? "dev" : v;
     }
 }

@@ -32,6 +32,11 @@ tasks.named<ProcessResources>("processResources") {
     from(rootProject.file("connectors.yaml")) { into("templates") }
 }
 
+// The version is readable at run time, so the MCP handshake and `quartet-qe version` report the real release.
+tasks.jar {
+    manifest { attributes("Implementation-Title" to "quartet-qe", "Implementation-Version" to project.version) }
+}
+
 // Helper scripts installed with the tool, so tests repos run them as ./quartet-qe get-started, secret and ai-key.
 distributions {
     main {
@@ -39,6 +44,11 @@ distributions {
             from(rootProject.file("get-started.sh")) { into("scripts") }
             from(rootProject.file("set-secret.sh")) { into("scripts") }
             from(rootProject.file("set-ai-key.sh")) { into("scripts") }
+            // What a release needs to create a tests repo without a clone of this repo.
+            from(rootProject.file("new-tests-repo.sh")) { into("scripts") }
+            from(rootProject.file("skeleton")) { into("skeleton") }
+            from(rootProject.file("LICENSE"))
+            from(rootProject.file("SECURITY.md"))
         }
     }
 }
