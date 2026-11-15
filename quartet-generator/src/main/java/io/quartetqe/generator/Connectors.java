@@ -60,7 +60,7 @@ public final class Connectors {
     }
 
     public static Connectors load(Path file) {
-        return load(file, System.getenv());
+        return load(file, io.quartetqe.core.DotEnv.environment());
     }
 
     /** Reads connectors.yaml, filling ${NAME} from the given variables, such as the project's .env on top of the environment. */

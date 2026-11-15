@@ -38,8 +38,25 @@ public final class DotEnv {
     /** The project's .env with the real environment on top. */
     public static Map<String, String> merged(Path root) {
         Map<String, String> merged = new HashMap<>(read(root.resolve(".env")));
-        merged.putAll(System.getenv());
+        merged.putAll(environment());
         return merged;
+    }
+
+    /** The real environment without settings a launcher left empty or unfilled. */
+    public static Map<String, String> environment() {
+        Map<String, String> given = new HashMap<>();
+        System.getenv().forEach((name, value) -> {
+            if (!blankOrUnfilled(value)) given.put(name, value);
+        });
+        return given;
+    }
+
+    /**
+     * A launcher that fills settings in from a form can pass an empty value, or the placeholder itself when the
+     * user left a field blank. Neither is something the user chose, so the setting counts as not given.
+     */
+    static boolean blankOrUnfilled(String value) {
+        return value == null || value.isBlank() || value.matches("\\$\\{[A-Za-z_]+\\.[A-Za-z0-9_.]+}");
     }
 
     /** Adds or replaces one entry, keeping the rest of the file, readable by the owner only. */

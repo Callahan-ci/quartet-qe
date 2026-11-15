@@ -33,6 +33,7 @@ final class ChatSession {
         If the project is not set up yet (quartet_start or quartet_onboarding says so), set it up first with the user: call quartet_onboarding
         and work through the open items one at a time, asking only what is missing and writing each answer with quartet_configure.
         Never ask for a token, password or key in the chat: name the variable and have the user run ./quartet-qe secret NAME in a terminal.
+        If Quartet QE was installed as a chat-app extension, tokens for Jira, Azure DevOps, GitHub, GitLab and Jenkins go in the extension's settings instead; quartet_secrets_status says which.
         Check each connection with quartet_verify. Then write the first test.
         Be a guide: explain in plain words why each extra (API specs, telemetry, test data, source code, git host, tracker, Jenkins) makes the tests better,
         offer them one at a time using the advice quartet_onboarding returns, and let the user skip any.

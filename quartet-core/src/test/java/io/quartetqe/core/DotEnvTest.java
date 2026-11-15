@@ -47,4 +47,14 @@ class DotEnvTest {
         assertThat(merged.get("PATH")).isNotEqualTo("from-file");
         assertThat(merged).containsEntry("ONLY_IN_FILE", "yes");
     }
+
+    @Test
+    void aSettingLeftEmptyOrUnfilledByALauncherCountsAsNotGiven() {
+        assertThat(DotEnv.blankOrUnfilled("")).isTrue();
+        assertThat(DotEnv.blankOrUnfilled("   ")).isTrue();
+        assertThat(DotEnv.blankOrUnfilled(null)).isTrue();
+        assertThat(DotEnv.blankOrUnfilled("${user_config.jira_url}")).isTrue();
+        assertThat(DotEnv.blankOrUnfilled("https://your-company.atlassian.net")).isFalse();
+        assertThat(DotEnv.blankOrUnfilled("a-token-with-$dollar")).isFalse();
+    }
 }

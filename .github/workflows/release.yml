@@ -28,16 +28,25 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "Tags look like v1.2.3, not $TAG" >&2; exit 1 ;; esac
           echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
-      - run: ./gradlew -PreleaseVersion="$VERSION" :quartet-generator:distZip --console=plain
-      - name: Check the package starts and answers the MCP handshake
+      - name: Build the zip and the extension bundles (one per platform)
+        run: ./gradlew -PreleaseVersion="$VERSION" :quartet-generator:distZip :quartet-generator:mcpbBundles --console=plain
+      - name: Check the extension manifest with the official tool
+        run: |
+          mkdir manifest-check && unzip -q quartet-generator/build/distributions/quartet-qe-"$VERSION"-linux.mcpb manifest.json icon.png -d manifest-check
+          (cd manifest-check && npx --yes @anthropic-ai/mcpb@2.1.2 validate manifest.json)
+      - name: Check the zip starts and walks the first-time path
         run: |
           mkdir unpacked && unzip -q quartet-generator/build/distributions/quartet-qe-"$VERSION".zip -d unpacked
           scripts/smoke-release.sh unpacked/quartet-qe-"$VERSION" "$VERSION"
-      - name: Write the checksum
+      - name: Check the Linux extension bundle the same way
+        run: |
+          mkdir bundle && unzip -q quartet-generator/build/distributions/quartet-qe-"$VERSION"-linux.mcpb -d bundle
+          scripts/smoke-release.sh bundle "$VERSION"
+      - name: Write the checksums
         run: |
           mkdir release
-          cp quartet-generator/build/distributions/quartet-qe-"$VERSION".zip release/
-          (cd release && sha256sum quartet-qe-"$VERSION".zip > quartet-qe-"$VERSION".zip.sha256)
+          cp quartet-generator/build/distributions/quartet-qe-"$VERSION".zip quartet-generator/build/distributions/*.mcpb release/
+          (cd release && sha256sum * > SHA256SUMS && cat SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with: {name: release, path: release/*}
 
