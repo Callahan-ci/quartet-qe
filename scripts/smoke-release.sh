@@ -25,6 +25,7 @@ fail() { echo "FAILED: $1" >&2; echo "$OUT" | head -c 1500 >&2; exit 1; }
 echo "$OUT" | grep -q '"name":"quartet-qe"' || fail "no handshake answer"
 echo "$OUT" | grep -q "\"version\":\"$VERSION\"" || fail "the handshake does not report version $VERSION"
 echo "$OUT" | grep -q 'quartet_start' || fail "the tool list is missing quartet_start"
+echo "$OUT" | grep -q '"readOnlyHint"' || fail "the tool list carries no annotations"
 echo "$OUT" | grep -q 'needs_decisions' || fail "a first start in an empty folder did not ask where the tests should live"
 
 REPO="$WORK/home/quartet-tests/smoke-shop-tests"

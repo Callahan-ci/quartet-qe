@@ -85,8 +85,9 @@ final class McpServer {
         ObjectNode out = Json.obj();
         ArrayNode array = out.putArray("tools");
         for (Tool tool : tools) {
-            array.addObject().put("name", tool.name()).put("description", tool.def().description())
-                    .set("inputSchema", tool.def().schema());
+            ObjectNode entry = array.addObject();
+            entry.put("name", tool.name()).put("description", tool.def().description()).set("inputSchema", tool.def().schema());
+            ToolHints.annotate(entry);
         }
         return out;
     }
