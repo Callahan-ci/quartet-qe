@@ -2,24 +2,33 @@
 # Creates a lean tests repo from the skeleton: tests, context, recordings and settings only.
 # Quartet QE itself is installed once per machine, not copied into each repo. Usage: ./new-tests-repo.sh ../my-product-tests
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+SELF="$(cd "$(dirname "$0")" && pwd)"
+# Run from a release download this script sits in scripts/ next to release.properties. From a checkout it sits at the root.
+if [ -f "$SELF/../release.properties" ]; then PACKAGED=1; HERE="$(dirname "$SELF")"; else PACKAGED=0; HERE="$SELF"; fi
 TARGET="${1:?Usage: ./new-tests-repo.sh <new-folder>}"
 [ -e "$TARGET" ] && { echo "$TARGET already exists."; exit 1; }
-URL="$(git -C "$HERE" remote get-url origin)"
 NAME="$(basename "$TARGET")"
 # The name ends up in files and in a perl substitution, so only plain characters are allowed.
 case "$NAME" in
   ''|.*|*[!A-Za-z0-9._-]*) echo "The folder name may only contain letters, digits, dots, dashes and underscores, and cannot start with a dot: $NAME" >&2; exit 1 ;;
 esac
 
-# The version CI should fetch. Use this checkout's commit if it has been pushed, otherwise the pushed main.
-REF="$(git -C "$HERE" rev-parse HEAD)"
-if [ -z "$(git -C "$HERE" branch -r --contains "$REF" 2>/dev/null)" ]; then
-  REF="$(git -C "$HERE" rev-parse origin/main 2>/dev/null || echo main)"
-  echo "Note: this Quartet checkout has changes that are not pushed, so CI will use the pushed version ($REF)." >&2
+if [ "$PACKAGED" = 1 ]; then
+  # A release: CI fetches this exact release by its tag, and Quartet is already installed from the download.
+  URL="$(sed -n 's/^repoUrl=//p' "$HERE/release.properties")"
+  REF="v$(sed -n 's/^version=//p' "$HERE/release.properties")"
+  mkdir -p "${QUARTET_HOME_LINK:-$HOME/.quartet}"
+  ln -sfn "$HERE" "${QUARTET_HOME_LINK:-$HOME/.quartet}/current"
+else
+  URL="$(git -C "$HERE" remote get-url origin)"
+  # The version CI should fetch. Use this checkout's commit if it has been pushed, otherwise the pushed main.
+  REF="$(git -C "$HERE" rev-parse HEAD)"
+  if [ -z "$(git -C "$HERE" branch -r --contains "$REF" 2>/dev/null)" ]; then
+    REF="$(git -C "$HERE" rev-parse origin/main 2>/dev/null || echo main)"
+    echo "Note: this Quartet checkout has changes that are not pushed, so CI will use the pushed version ($REF)." >&2
+  fi
+  "$HERE/install-quartet.sh"
 fi
-
-"$HERE/install-quartet.sh"
 
 mkdir -p "$TARGET/context"
 cp -R "$HERE/skeleton/." "$TARGET/"

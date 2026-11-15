@@ -37,6 +37,13 @@ tasks.jar {
     manifest { attributes("Implementation-Title" to "quartet-qe", "Implementation-Version" to project.version) }
 }
 
+// Tells a release install where it came from, so the tests repos it creates pin CI to this exact release.
+val releaseProperties = tasks.register<WriteProperties>("releaseProperties") {
+    destinationFile.set(layout.buildDirectory.file("generated/release/release.properties"))
+    property("repoUrl", "https://github.com/goughliam1813/quartet-qe")
+    property("version", project.version.toString())
+}
+
 // Helper scripts installed with the tool, so tests repos run them as ./quartet-qe get-started, secret and ai-key.
 distributions {
     main {
@@ -47,6 +54,11 @@ distributions {
             // What a release needs to create a tests repo without a clone of this repo.
             from(rootProject.file("new-tests-repo.sh")) { into("scripts") }
             from(rootProject.file("skeleton")) { into("skeleton") }
+            // Every Gradle project carries its wrapper, so a new tests repo gets one from here.
+            from(rootProject.file("gradlew")) { filePermissions { unix("rwxr-xr-x") } }
+            from(rootProject.file("gradlew.bat"))
+            from(rootProject.file("gradle/wrapper")) { into("gradle/wrapper") }
+            from(releaseProperties)
             from(rootProject.file("LICENSE"))
             from(rootProject.file("SECURITY.md"))
         }
