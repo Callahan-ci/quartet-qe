@@ -98,4 +98,17 @@ final class ActRecorder {
             throw new UncheckedIOException(e);
         }
     }
+
+    /** Saves a screenshot next to the audit log and returns its path relative to it, such as screenshots/T.m.act1.site.png. */
+    String saveScreenshot(String name, byte[] png) {
+        try {
+            Path dir = (reportFile.getParent() == null ? Path.of(".") : reportFile.getParent()).resolve("screenshots");
+            Files.createDirectories(dir);
+            String file = name.replaceAll("[^A-Za-z0-9._@-]", "_") + ".png";
+            Files.write(dir.resolve(file), png);
+            return "screenshots/" + file;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 }

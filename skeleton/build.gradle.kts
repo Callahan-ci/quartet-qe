@@ -51,4 +51,18 @@ tasks.test {
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
     doFirst { delete(layout.buildDirectory.dir("quartet-report")) }
+    finalizedBy("quartetReport")
+}
+
+// After every run, write build/quartet-report/report.html: results, what each step did, and a screenshot of each screen.
+// Open it in a browser. It never fails the build.
+tasks.register<JavaExec>("quartetReport") {
+    description = "Writes build/quartet-report/report.html from the last test run."
+    classpath = fileTree("$quartetHome/lib") { include("*.jar") }
+    mainClass.set("io.quartetqe.generator.Main")
+    args("report")
+    workingDir = projectDir
+    isIgnoreExitValue = true
+    // Plain output: the one line that says where the report is.
+    standardOutput = System.out
 }

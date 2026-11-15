@@ -92,7 +92,7 @@ context/  +  story  ->  readiness check  ->  write tests  ->  static rules
 5. **Second opinion.** One independent review call looks through four lenses: Product Designer, Tech Lead, QA and DevOps.
 6. **Run.** Tests run against your real environment. Verified steps are recorded.
 7. **Prove (optional).** With `--prove`, bugs are planted in a test build and the tests must catch them.
-8. **Review.** `reports/<story>/review.html` is a branded page you open in a browser: a plain verdict, then what needs your attention first, what each acceptance criterion proved, and the evidence. It is one file with nothing to fetch, follows your light or dark setting and prints cleanly. The same review is written as `review.md`, which is what a pull request description uses. Merge only after a person approves.
+8. **Review.** `reports/<story>/review.html` is a branded page you open in a browser: a plain verdict, then what needs your attention first, what each acceptance criterion proved, and the evidence. It is one file with nothing to fetch, follows your light or dark setting and prints cleanly. The same review is written as `review.md`, which is what a pull request description uses. Merge only after a person approves. After every `./gradlew test`, and in Jenkins, Quartet also writes `build/quartet-report/report.html`: the results of the run, what each act did step by step (including API responses), and a screenshot of each screen it touched, with click-to-enlarge. It says how many steps were replayed and how many needed the AI. Jenkins shows it as a "Quartet QE report" tab when the HTML Publisher plugin is installed, and always keeps it in the build artifacts. Set `QUARTET_SCREENSHOTS=off` to skip the screenshots.
 
 ### Record once, replay with no AI
 

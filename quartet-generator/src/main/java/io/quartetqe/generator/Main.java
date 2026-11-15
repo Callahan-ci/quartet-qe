@@ -364,8 +364,10 @@ public final class Main {
     /** One page for the last run: the build's own JUnit XML plus the audit of every act. */
     private int report(Map<String, String> options) throws IOException {
         Path results = Path.of(options.getOrDefault("results", settings.path("tests").path("results").asText()));
-        Path module = results.getParent() != null && results.getParent().getParent() != null
-                ? results.getParent().getParent() : root;
+        // The module is the folder that holds the build folder: the repo itself, or e2e-tests in the framework folder.
+        Path module = root.resolve(results).normalize();
+        while (module != null && !"build".equals(module.getFileName() == null ? "" : module.getFileName().toString())) module = module.getParent();
+        module = module == null || module.getParent() == null ? root : module.getParent();
         Path audit = options.containsKey("audit")
                 ? Path.of(options.get("audit"))
                 : module.resolve("build/quartet-report/acts.jsonl");
@@ -375,7 +377,7 @@ public final class Main {
                 ? Path.of(options.get("out"))
                 : module.resolve("build/quartet-report/report.html");
         RunReport.write(data, out);
-        System.out.println("Report   " + out);
+        System.out.println("Report   " + (out.isAbsolute() && out.startsWith(root) ? root.relativize(out) : out));
         if (options.containsKey("dry-run")) {
             System.out.println();
             System.out.println(RunReport.markdown(data));

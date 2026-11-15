@@ -69,6 +69,7 @@ public final class TestAgent implements AutoCloseable {
     private final String device;
     private final boolean headless;
     private final Map<String, Driver> drivers = new LinkedHashMap<>();
+    private int actCount;
 
     TestAgent(Environment environment, Supplier<Llm.Client> llm, Mode mode, ActRecorder recorder, String testId,
               String story, String device, boolean headless) {
@@ -147,7 +148,7 @@ public final class TestAgent implements AutoCloseable {
             ActRecorder.REPLAYED.incrementAndGet();
             ActResult result = new ActResult(recording.path("summary").asText(),
                     Binder.resolve(recording.path("data"), replay.scope()), ActResult.Source.REPLAYED);
-            audit(spec, result.source(), replay.results().size(), 0, 0, null, recording.path("model").asText());
+            audit(spec, result.source(), replay.results().size(), 0, 0, null, recording.path("model").asText(), replayTrace(recording, replay.results()));
             return result;
         }
         if (mode == Mode.REPLAY) {
@@ -179,7 +180,7 @@ public final class TestAgent implements AutoCloseable {
                 TestAgent::ungroundedEvidence, 10, 8000));
         ActRecorder.TOKENS.addAndGet(outcome.inputTokens() + outcome.outputTokens());
         ActRecorder.MODEL_CALLS.addAndGet(outcome.turns());
-        audit(spec, ActResult.Source.LIVE, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), null, client.model());
+        audit(spec, ActResult.Source.LIVE, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), null, client.model(), liveTrace(outcome.steps()));
         if (!outcome.finish().path("holds").asBoolean(false)) {
             throw new AssertionError("Claim does not hold: " + spec.instruction() + "\nEvidence: " + outcome.finish().path("evidence"));
         }
@@ -274,7 +275,7 @@ public final class TestAgent implements AutoCloseable {
         ActRecorder.TOKENS.addAndGet(outcome.inputTokens() + outcome.outputTokens());
         ActRecorder.MODEL_CALLS.addAndGet(outcome.turns());
         if (!outcome.finish().path("ok").asBoolean(false)) {
-            audit(spec, ActResult.Source.LIVE, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), "could-not-attempt", client.model());
+            audit(spec, ActResult.Source.LIVE, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), "could-not-attempt", client.model(), liveTrace(outcome.steps()));
             throw new AgentActException("The agent could not perform: " + spec.instruction() + "\nReason: " + outcome.finish().path("summary").asText());
         }
 
@@ -307,7 +308,7 @@ public final class TestAgent implements AutoCloseable {
         recording.set("data", bound.template());
         recorder.stage(file, recording);
 
-        audit(spec, source, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), replay == null ? null : replay.stopReason(), client.model());
+        audit(spec, source, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), replay == null ? null : replay.stopReason(), client.model(), liveTrace(outcome.steps()));
         return new ActResult(outcome.finish().path("summary").asText(), data, source);
     }
 
@@ -378,13 +379,57 @@ public final class TestAgent implements AutoCloseable {
         }
     }
 
-    private void audit(Spec spec, ActResult.Source source, int steps, int input, int output, String stopReason, String model) {
+    private void audit(Spec spec, ActResult.Source source, int steps, int input, int output, String stopReason, String model, ArrayNode trace) {
         ObjectNode entry = Json.obj();
         entry.put("test", testId).put("story", story).put("instruction", spec.template()).put("why", spec.why())
                 .put("source", source.name()).put("steps", steps).put("inputTokens", input).put("outputTokens", output)
                 .put("model", model).put("stopReason", stopReason);
         entry.set("on", Json.MAPPER.valueToTree(spec.on()));
+        if (!spec.instruction().equals(spec.template())) entry.put("resolved", spec.instruction());
+        entry.set("trace", trace);
+        ArrayNode shots = entry.putArray("shots");
+        actCount++;
+        if (!"off".equalsIgnoreCase(System.getenv("QUARTET_SCREENSHOTS"))) {
+            for (String target : spec.on()) {
+                Driver driver = drivers.get(target);
+                byte[] png = driver == null ? null : driver.screenshot();
+                if (png != null) shots.addObject().put("target", target).put("file", recorder.saveScreenshot(testId + ".act" + actCount + "." + target, png));
+            }
+        }
         recorder.audit(entry);
+    }
+
+    /** What an act did, for the report: one line per step, short enough to read at a glance. */
+    private static ArrayNode replayTrace(JsonNode recording, List<JsonNode> results) {
+        ArrayNode trace = Json.arr();
+        for (int i = 0; i < recording.path("steps").size(); i++) {
+            JsonNode step = recording.path("steps").path(i);
+            trace.add(note(step.path("tool").asText(), step.path("args"), i < results.size() ? results.get(i) : null, false));
+        }
+        return trace;
+    }
+
+    private static ArrayNode liveTrace(List<AgentLoop.Step> steps) {
+        ArrayNode trace = Json.arr();
+        steps.stream().filter(s -> !PERCEPTION.contains(s.tool())).forEach(s -> trace.add(note(s.tool(), s.args(), s.result(), s.error())));
+        return trace;
+    }
+
+    private static ObjectNode note(String tool, JsonNode args, JsonNode result, boolean error) {
+        ObjectNode note = Json.obj().put("tool", tool).put("args", brief(args, 140));
+        if (result != null) {
+            JsonNode shown = result.isObject() ? result.deepCopy() : result;
+            if (shown.isObject()) ((ObjectNode) shown).remove("replayCheck");
+            note.put("result", brief(shown, 200));
+        }
+        if (error) note.put("error", true);
+        return note;
+    }
+
+    private static String brief(JsonNode node, int max) {
+        String text = node == null || node.isMissingNode() ? "" : node.isTextual() ? node.asText() : node.toString();
+        text = text.replaceAll("\\s+", " ").trim();
+        return text.length() > max ? text.substring(0, max) + "…" : text;
     }
 
     void testPassed() {
