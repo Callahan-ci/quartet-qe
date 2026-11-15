@@ -208,7 +208,7 @@ public final class Main {
         System.out.printf("Tests    %d written", summary.written());
         if (run) System.out.printf(": %d passed, %d failed, %d skipped", summary.passed(), summary.failed(), summary.skipped());
         if (faults != null) System.out.printf(". %.0f%% of planted bugs caught", faults.detectionRate() * 100);
-        System.out.printf("%nReview   %s (%s)%n", root.relativize(reportDir(story).resolve("review.md")),
+        System.out.printf("%nReview   %s (%s)%n", root.relativize(reportDir(story).resolve("review.html")),
                 summary.approved() ? "ready to merge" : summary.attention() + " item(s) need your attention");
         return new Outcome(story, result, summary);
     }

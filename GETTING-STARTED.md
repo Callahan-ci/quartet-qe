@@ -39,7 +39,7 @@ To see the chat path as well, run `./demo-chat.sh`. It starts the real MCP serve
 Open the review page it produced:
 
 ```bash
-open reports/SHOP-142/review.md      # macOS. On Linux use xdg-open
+open reports/SHOP-142/review.html    # macOS. On Linux use xdg-open
 ```
 
 It lists anything that needs your attention first, then what passed and the evidence for each acceptance criterion.
@@ -205,7 +205,7 @@ This is the one step that uses the AI. It:
 3. compiles them and checks them against your principles, fixing what blocks,
 4. asks an independent second opinion through four lenses: Product Designer, Tech Lead, QA and DevOps,
 5. runs them against your environment and records each verified step,
-6. writes `reports/SHOP-142/review.md`.
+6. writes `reports/SHOP-142/review.html` (and the same review as `review.md`).
 
 Useful options:
 
@@ -217,7 +217,7 @@ Useful options:
 
 ## 8. Review, then replay with no AI
 
-Open `reports/<story>/review.md`. Anything that needs your attention is at the top. Read the generated tests like any other code, then commit the tests and the `recordings/` folder together.
+Open `reports/<story>/review.html`. Anything that needs your attention is at the top. Read the generated tests like any other code, then commit the tests and the `recordings/` folder together.
 
 Now run them with no AI:
 

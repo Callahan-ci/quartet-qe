@@ -580,7 +580,8 @@ final class ChatSession {
         refreshReadme();
 
         ObjectNode out = Json.obj().put("status", summary.approved() ? "ready_to_merge" : "needs_attention");
-        out.put("review_page", main.root.relativize(main.reportDir(item).resolve("review.md")).toString());
+        out.put("review_page", main.root.relativize(main.reportDir(item).resolve("review.html")).toString());
+        out.put("review_page_markdown", main.root.relativize(main.reportDir(item).resolve("review.md")).toString());
         out.put("tests_repo", main.root.toString());
         ArrayNode where = out.putArray("files_written");
         String prefix = main.root.relativize(main.testSourceRoot()) + "/generated/" + item.slug() + "/";

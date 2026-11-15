@@ -134,7 +134,9 @@ class ChatSessionTest {
 
         JsonNode done = call("quartet_next_step", "{\"wait_seconds\":30}");
         assertThat(done.path("type").asText()).as(done.toString()).isEqualTo("finished");
-        assertThat(done.path("result").path("review_page").asText()).isEqualTo("reports/SHOP-142/review.md");
+        assertThat(done.path("result").path("review_page").asText()).isEqualTo("reports/SHOP-142/review.html");
+        assertThat(done.path("result").path("review_page_markdown").asText()).isEqualTo("reports/SHOP-142/review.md");
+        assertThat(project.resolve("reports/SHOP-142/review.html")).exists();
         assertThat(project.resolve("reports/SHOP-142/review.md")).exists();
         assertThat(call("quartet_next_step", "{\"wait_seconds\":1}").path("type").asText()).isEqualTo("idle");
     }

@@ -35,7 +35,7 @@ Or run it on a story directly:
 Context  26 files, 12 engineering principles
 Story    SHOP-142: Checkout reserves stock and confirms the order (7 acceptance criteria)
 Tests    6 written: 6 passed, 0 failed, 0 skipped
-Review   reports/SHOP-142/review.md (ready to merge)
+Review   reports/SHOP-142/review.html (ready to merge)
 ```
 
 ## Contents
@@ -92,7 +92,7 @@ context/  +  story  ->  readiness check  ->  write tests  ->  static rules
 5. **Second opinion.** One independent review call looks through four lenses: Product Designer, Tech Lead, QA and DevOps.
 6. **Run.** Tests run against your real environment. Verified steps are recorded.
 7. **Prove (optional).** With `--prove`, bugs are planted in a test build and the tests must catch them.
-8. **Review.** `reports/<story>/review.md` lists what needs your attention first, then what passed and the evidence. Merge only after a person approves.
+8. **Review.** `reports/<story>/review.html` is a branded page you open in a browser: a plain verdict, then what needs your attention first, what each acceptance criterion proved, and the evidence. It is one file with nothing to fetch, follows your light or dark setting and prints cleanly. The same review is written as `review.md`, which is what a pull request description uses. Merge only after a person approves.
 
 ### Record once, replay with no AI
 
@@ -223,7 +223,7 @@ You do not need an API key. Quartet QE is also an [MCP](https://modelcontextprot
 2. To try the demo, start the sample shop in a terminal and leave it open: `./demo-shop.sh` (no Docker needed). For your own system, it must be running and reachable too. Quartet checks this before running tests and says what to start.
 3. Ask: **"Write tests for stories/SHOP-142.md using Quartet QE."** The first time, Quartet asks where the tests should live (a new tests repo, an existing one, or this folder) and whether you want a Jenkins pipeline. It remembers your answers in `quartet-setup.yaml`. It never commits or pushes for you. To test a public website, say **"Test my site https://www.example.com using Quartet QE"** and describe what matters. The AI drafts the story with you, and Quartet creates the environment for that site itself. There is no file to write and nothing to restart. `AGENTS.md` tells the AI the order of work.
 4. The AI reads your context, writes the tests, and hands them over. Quartet checks them, runs an independent review, runs the tests, and writes the review page.
-5. You review `reports/<story>/review.md`. After that the tests replay with no AI at all.
+5. You review `reports/<story>/review.html`. After that the tests replay with no AI at all.
 
 You can see the whole path with no AI and no key. `./demo-chat.sh` starts the real server, a stand-in chat AI and the real sample system. The stand-in answers each model step from a script, so it shows the plumbing, not AI judgement.
 

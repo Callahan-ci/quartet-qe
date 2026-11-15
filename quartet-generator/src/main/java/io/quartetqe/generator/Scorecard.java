@@ -85,8 +85,54 @@ public final class Scorecard {
         long failed = run == null ? 0 : run.failures().size();
         json.put("passed", passed).put("failed", failed).put("skipped", skipped);
         Files.writeString(directory.resolve("review.md"), md.toString());
+        Files.writeString(directory.resolve("review.html"), BrandedReport.render(model(story, approved, attention, criteriaByTest, run, principles, all, questions,
+                faults, generation, passed, failed, skipped)));
         Files.writeString(directory.resolve("review.json"), Json.pretty(json) + "\n");
         return new Summary(approved, criteriaByTest.size(), passed, failed, skipped, attention.size());
+    }
+
+    /** The same facts as the markdown, shaped for the branded page. */
+    private static BrandedReport.Model model(WorkItem story, boolean approved, List<String> attention, Map<String, List<String>> criteriaByTest,
+                                             TestRunner.Result run, Principles principles, List<Finding> all, List<Finding> questions,
+                                             FaultEvaluator.Evaluation faults, TestGenerator.Result generation, long passed, long failed, long skipped) {
+        List<BrandedReport.Criterion> criteria = new ArrayList<>();
+        for (var criterion : story.acceptanceCriteria().entrySet()) {
+            List<BrandedReport.Test> tests = new ArrayList<>();
+            criteriaByTest.entrySet().stream().filter(e -> e.getValue().contains(criterion.getKey())).map(Map.Entry::getKey)
+                    .forEach(test -> tests.addAll(outcomes(test, run)));
+            criteria.add(new BrandedReport.Criterion(criterion.getKey(), criterion.getValue(), tests));
+        }
+        List<BrandedReport.Principle> checks = new ArrayList<>();
+        for (String name : principles.names()) {
+            List<Finding> matching = all.stream().filter(f -> f.principle().equals(name)).toList();
+            String status = matching.stream().anyMatch(Finding::blocking) ? "FAIL" : matching.isEmpty() ? "PASS" : "NOTE";
+            checks.add(new BrandedReport.Principle(name, status, matching.stream().map(Finding::message).toList()));
+        }
+        List<BrandedReport.Fault> planted = null;
+        if (faults != null) {
+            planted = faults.faults().stream().map(f -> new BrandedReport.Fault(f.description(),
+                    f.benign() ? (f.detected() ? "FALSE ALARM" : "OK") : (f.detected() ? "CAUGHT" : "MISSED"))).toList();
+        }
+        double seconds = run == null ? 0 : run.tests().stream().mapToDouble(TestRunner.TestOutcome::seconds).sum();
+        return new BrandedReport.Model(story.id(), story.title(), approved, attention, criteria, checks,
+                questions.stream().filter(f -> !f.blocking()).map(f -> f.location() + ": " + f.message()).toList(), planted,
+                faults == null ? 0 : faults.detectionRate(), faults == null ? 0 : faults.falseAlarms(),
+                generation.turns(), generation.inputTokens() + generation.outputTokens(), generation.selfCorrections(),
+                run != null, (int) passed, (int) failed, (int) skipped, seconds);
+    }
+
+    /** One row per run of a test, with the device it ran on when it ran on several. */
+    private static List<BrandedReport.Test> outcomes(String test, TestRunner.Result run) {
+        List<BrandedReport.Test> rows = new ArrayList<>();
+        if (run == null) return List.of(new BrandedReport.Test(test, "", "NOT_RUN", 0, null));
+        for (TestRunner.TestOutcome outcome : run.tests()) {
+            String name = outcome.method();
+            if (!name.equals(test) && !name.startsWith(test + " [")) continue;
+            String device = name.contains(" [") ? name.substring(name.indexOf('[') + 1, name.length() - 1) : "";
+            rows.add(new BrandedReport.Test(test, device, outcome.skipped() ? "SKIPPED" : outcome.passed() ? "PASSED" : "FAILED",
+                    outcome.seconds(), outcome.passed() || outcome.skipped() ? null : firstLines(outcome.failure()).replace("\\|", "|")));
+        }
+        return rows.isEmpty() ? List.of(new BrandedReport.Test(test, "", "NOT_RUN", 0, null)) : rows;
     }
 
     /** Results for one test, grouped by outcome, with device names where it ran on several. */
