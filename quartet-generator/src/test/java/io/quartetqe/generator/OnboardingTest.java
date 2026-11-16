@@ -28,8 +28,19 @@ class OnboardingTest {
     @TempDir Path project;
     private List<Tool> tools;
 
+    private String realHome;
+
+    @org.junit.jupiter.api.AfterEach
+    void restoreHome() {
+        System.setProperty("user.home", realHome);
+    }
+
     @BeforeEach
     void open() throws IOException {
+        // A local repo must be a git checkout inside the home folder, so the test's folder stands in for it.
+        realHome = System.getProperty("user.home");
+        System.setProperty("user.home", project.getParent().toString());
+        for (String checkout : new String[] {"shop/.git", "shop/src", "shop/new", "api/.git"}) Files.createDirectories(project.resolve(checkout));
         copy(REPO.resolve("skeleton/quartet.yaml"), project.resolve("quartet.yaml"));
         copy(REPO.resolve("skeleton/context"), project.resolve("context"));
         copy(REPO.resolve("context/engineering-principles"), project.resolve("context/engineering-principles"));

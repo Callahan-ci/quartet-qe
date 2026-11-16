@@ -57,4 +57,14 @@ class DotEnvTest {
         assertThat(DotEnv.blankOrUnfilled("https://your-company.atlassian.net")).isFalse();
         assertThat(DotEnv.blankOrUnfilled("a-token-with-$dollar")).isFalse();
     }
+
+    @Test
+    void aSecretIsNeverSavedThroughASymbolicLink() throws Exception {
+        Path target = dir.resolve("elsewhere.txt");
+        Files.writeString(target, "keep me");
+        Path link = dir.resolve(".env");
+        Files.createSymbolicLink(link, target);
+        assertThatThrownBy(() -> DotEnv.set(link, "JIRA_TOKEN", "abc")).hasMessageContaining("symbolic link");
+        assertThat(Files.readString(target)).isEqualTo("keep me");
+    }
 }

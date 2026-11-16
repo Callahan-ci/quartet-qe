@@ -72,6 +72,12 @@ public final class TestRunner {
             ProcessBuilder builder = new ProcessBuilder(resolved).directory(projectRoot.toFile()).redirectErrorStream(true);
             builder.environment().putAll(baseEnvironment);
             builder.environment().putAll(env);
+            // The tests are code the AI wrote. They get what they need, not every secret the user's session holds.
+            java.util.Set<String> explicit = new java.util.HashSet<>(baseEnvironment.keySet());
+            explicit.addAll(env.keySet());
+            String environmentFile = builder.environment().get("QUARTET_ENV");
+            io.quartetqe.core.ChildEnvironment.restrict(builder.environment(), explicit,
+                    io.quartetqe.core.ChildEnvironment.referencedBy(environmentFile == null ? null : Path.of(environmentFile)), System.getenv());
             Process process = builder.start();
             String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exit = process.waitFor();

@@ -159,6 +159,9 @@ public final class Main {
         // Tests see the project's .env too. A real environment variable already reaches them, so it is left alone.
         Map<String, String> variables = new HashMap<>(io.quartetqe.core.DotEnv.read(root.resolve(".env")));
         variables.keySet().removeAll(System.getenv().keySet());
+        // Only the saved secrets the environment file reads reach the tests. A Jira or GitHub token has no business there.
+        java.util.Set<String> needed = io.quartetqe.core.ChildEnvironment.referencedBy(root.resolve(environmentPath));
+        variables.keySet().removeIf(name -> !io.quartetqe.core.ChildEnvironment.mayReachTests(name, needed, System.getenv()));
         variables.put("QUARTET_ENV", root.resolve(environmentPath).toString());
         variables.put("QUARTET_MODE", "auto");
         return TestRunner.fromSettings(root).withEnvironment(variables);

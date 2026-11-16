@@ -1,5 +1,6 @@
 package io.quartetqe.generator;
 
+import io.quartetqe.core.SafePaths;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -32,7 +33,9 @@ public final class ContextRepo {
     public ContextRepo(Path root) {
         this.root = root.toAbsolutePath().normalize();
         try (Stream<Path> paths = Files.isDirectory(this.root) ? Files.walk(this.root) : Stream.<Path>empty()) {
-            paths.filter(Files::isRegularFile).filter(ContextRepo::supported).sorted().forEach(this::add);
+            Path real = Files.isDirectory(this.root) ? this.root.toRealPath() : this.root;
+            // Notes only: no file that a link sends outside the folder, and nothing that looks like a credential.
+            paths.filter(p -> SafePaths.staysInside(real, p)).filter(p -> !SafePaths.looksSecret(this.root.relativize(p))).filter(ContextRepo::supported).sorted().forEach(this::add);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

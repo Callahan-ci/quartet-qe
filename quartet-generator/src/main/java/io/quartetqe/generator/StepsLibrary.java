@@ -44,6 +44,7 @@ final class StepsLibrary {
         }
         if (content.length() > 100_000) throw new IllegalArgumentException("That steps class is too large. Split it by area, such as Orders and Catalog.");
         Path directory = testSourceRoot.resolve(PACKAGE);
+        io.quartetqe.core.SafePaths.writable(testSourceRoot, directory.resolve(fileName));
         Files.createDirectories(directory);
         Files.writeString(directory.resolve(fileName), content);
         steps.put(PACKAGE + "/" + fileName, content);

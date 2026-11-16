@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.quartetqe.core.Json;
+import io.quartetqe.core.SafePaths;
 import io.quartetqe.core.Tool;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -50,7 +51,8 @@ final class ContextTools {
                     if ("local".equals(reference.path("provider").asText())) {
                         Path root = localRoot(repo, reference);
                         try (Stream<Path> paths = Files.walk(root)) {
-                            paths.filter(Files::isRegularFile).map(p -> root.relativize(p).toString()).filter(p -> p.startsWith(prefix)).sorted().forEach(files::add);
+                            paths.filter(p -> SafePaths.staysInside(root, p)).map(p -> root.relativize(p))
+                                    .filter(p -> !SafePaths.looksSecret(p)).map(Path::toString).filter(p -> p.startsWith(prefix)).sorted().forEach(files::add);
                         }
                     } else {
                         connectors.codeHost(reference.path("provider").asText(), reference).listFiles(prefix, reference.path("ref").asText("main")).forEach(files::add);
@@ -64,9 +66,7 @@ final class ContextTools {
                     String content;
                     if ("local".equals(reference.path("provider").asText())) {
                         Path root = localRoot(repo, reference);
-                        Path file = root.resolve(path).normalize();
-                        if (!file.startsWith(root)) throw new IllegalArgumentException("Path is outside the repository.");
-                        content = Files.readString(file);
+                        content = Files.readString(SafePaths.readable(root, path));
                     } else {
                         content = connectors.codeHost(reference.path("provider").asText(), reference).readFile(path, reference.path("ref").asText("main"));
                     }
@@ -75,7 +75,8 @@ final class ContextTools {
     }
 
     private static Path localRoot(ContextRepo repo, JsonNode reference) throws IOException {
-        return repo.root().resolve(reference.path("path").asText()).toRealPath();
+        // Checked every time it is read, since repos.yaml can come from a repo someone else wrote.
+        return SourceCheckouts.require(repo.root().resolve(reference.path("path").asText()));
     }
 
     private static JsonNode reference(ContextRepo repo, String name) {

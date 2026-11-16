@@ -321,6 +321,7 @@ A hosted Chromium (browserless, Kernel, a Docker sidecar) can replace the local 
 | The AI service is busy or over quota | The tool retries patiently and shows progress. If it keeps failing, check your quota or switch provider in `.env` |
 | A test fails with `no recording` | Run `./quartet-qe run` once, or use `QUARTET_MODE=auto` |
 | A test fails with `Recording is stale` | The replay rules changed since it was recorded. Run `./quartet-qe run` to record again |
+| A test cannot see a variable I set | Test runs get only the basics and the variables the environment file names. Write it there as `${NAME}`, or list it in `QUARTET_PASS_ENV=NAME1,NAME2`. `QUARTET_INHERIT_ENV=true` turns the limit off. |
 | A step fails after a UI change | Run `./quartet-qe repair --file <Test.java> --selector '<package>.*'`. It fixes the test without weakening it. If the product is wrong, you get a bug report instead |
 | `Jenkins did not find the branch` | Push the branch, and check Jenkins can read the repo |
 | A host is blocked | Add it to `allowHosts` in your environment file, if you really mean to test it |
