@@ -1,0 +1,239 @@
+{
+  "manifest_version": "0.3",
+  "name": "quartet-qe",
+  "display_name": "Quartet QE",
+  "version": "__VERSION__",
+  "description": "Turns a user story into end-to-end tests (API, Kafka, databases, web, phones, Android) that replay with no AI, with a human approving every merge.",
+  "long_description": "Quartet QE lets the AI you are chatting with write end-to-end tests from a user story, check its own work, record each step once and replay it with no AI. It tests REST APIs, Kafka, Postgres, MongoDB, web pages in three browser engines, phone browsers and native Android apps, then gives you one page to review before anything merges. It runs on your computer. Add your tracker, git host and Jenkins here once and it connects to them for you; secrets are stored by the app and never pass through the chat. Needs Java 21 installed.",
+  "author": {
+    "name": "Liam Gough",
+    "url": "https://github.com/goughliam1813"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/goughliam1813/quartet-qe"
+  },
+  "homepage": "https://github.com/goughliam1813/quartet-qe",
+  "documentation": "https://github.com/goughliam1813/quartet-qe/blob/main/GETTING-STARTED.md",
+  "support": "https://github.com/goughliam1813/quartet-qe/issues",
+  "license": "MIT",
+  "keywords": [
+    "testing",
+    "qa",
+    "end-to-end",
+    "test-automation",
+    "playwright",
+    "android",
+    "kafka",
+    "postgres",
+    "jira"
+  ],
+  "icon": "icon.png",
+  "server": {
+    "type": "binary",
+    "entry_point": "bin/quartet-qe",
+    "mcp_config": {
+      "command": "/bin/sh",
+      "args": ["${__dirname}/bin/quartet-qe", "mcp"],
+      "env": {
+        "QUARTET_LAUNCHED_BY": "extension",
+        "QUARTET_TESTS_REPO": "${user_config.tests_repo}",
+        "JIRA_URL": "${user_config.jira_url}",
+        "JIRA_EMAIL": "${user_config.jira_email}",
+        "JIRA_TOKEN": "${user_config.jira_token}",
+        "ADO_ORG_URL": "${user_config.ado_org_url}",
+        "ADO_TOKEN": "${user_config.ado_token}",
+        "GITHUB_API_URL": "${user_config.github_api_url}",
+        "GITHUB_TOKEN": "${user_config.github_token}",
+        "GITLAB_API_URL": "${user_config.gitlab_api_url}",
+        "GITLAB_TOKEN": "${user_config.gitlab_token}",
+        "JENKINS_URL": "${user_config.jenkins_url}",
+        "JENKINS_USER": "${user_config.jenkins_user}",
+        "JENKINS_TOKEN": "${user_config.jenkins_token}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "quartet_start",
+      "description": "Begin work on a story, or on a public site to test."
+    },
+    {
+      "name": "quartet_setup",
+      "description": "Save the setup answers: the product name and where the tests live."
+    },
+    {
+      "name": "quartet_onboarding",
+      "description": "Show what is set up for the product and what is not, as a checklist."
+    },
+    {
+      "name": "quartet_configure",
+      "description": "Write one part of the setup from what the user said."
+    },
+    {
+      "name": "quartet_secrets_status",
+      "description": "Show which secrets the setup needs and which are saved, by name only."
+    },
+    {
+      "name": "quartet_verify",
+      "description": "Check a connection for real: environment, tracker, git host or Jenkins."
+    },
+    {
+      "name": "context_list",
+      "description": "List every file in the context repo."
+    },
+    {
+      "name": "context_search",
+      "description": "Search the context repo by keyword."
+    },
+    {
+      "name": "context_read",
+      "description": "Read one context file."
+    },
+    {
+      "name": "repo_list",
+      "description": "List files in a referenced repository."
+    },
+    {
+      "name": "repo_read",
+      "description": "Read one file from a referenced repository."
+    },
+    {
+      "name": "write_test",
+      "description": "Create or replace one generated test file."
+    },
+    {
+      "name": "list_steps",
+      "description": "List the reusable steps that already exist."
+    },
+    {
+      "name": "write_steps",
+      "description": "Create or replace a reusable steps class."
+    },
+    {
+      "name": "validate_tests",
+      "description": "Compile the tests and check them against the engineering principles."
+    },
+    {
+      "name": "quartet_check_environment",
+      "description": "Check every system the tests talk to is reachable before running them."
+    },
+    {
+      "name": "quartet_finish",
+      "description": "Hand over the tests to be run, proved and reviewed."
+    },
+    {
+      "name": "quartet_next_step",
+      "description": "Wait for the next thing Quartet needs from the AI."
+    },
+    {
+      "name": "quartet_answer_step",
+      "description": "Answer a step as the model would."
+    }
+  ],
+  "tools_generated": false,
+  "compatibility": {
+    "platforms": ["darwin", "linux"]
+  },
+  "privacy_policies": [
+    "https://github.com/goughliam1813/quartet-qe/blob/main/PRIVACY.md"
+  ],
+  "user_config": {
+    "tests_repo": {
+      "type": "directory",
+      "title": "Tests folder (optional)",
+      "description": "An existing Quartet QE tests repo to work in. Leave empty to be asked in the chat where new tests should live.",
+      "required": false,
+      "default": ""
+    },
+    "jira_url": {
+      "type": "string",
+      "title": "Jira address",
+      "description": "For example https://your-company.atlassian.net. Used to read stories from Jira.",
+      "required": false,
+      "default": ""
+    },
+    "jira_email": {
+      "type": "string",
+      "title": "Jira email",
+      "description": "The account the Jira token belongs to.",
+      "required": false,
+      "default": ""
+    },
+    "jira_token": {
+      "type": "string",
+      "title": "Jira API token",
+      "description": "A token that can read issues and, if you want, comment on them.",
+      "required": false,
+      "default": "",
+      "sensitive": true
+    },
+    "ado_org_url": {
+      "type": "string",
+      "title": "Azure DevOps organisation",
+      "description": "For example https://dev.azure.com/your-org. Used to read work items and open pull requests.",
+      "required": false,
+      "default": ""
+    },
+    "ado_token": {
+      "type": "string",
+      "title": "Azure DevOps token",
+      "description": "A personal access token with the least access it needs.",
+      "required": false,
+      "default": "",
+      "sensitive": true
+    },
+    "github_api_url": {
+      "type": "string",
+      "title": "GitHub API address (optional)",
+      "description": "Only for GitHub Enterprise. Leave empty for github.com.",
+      "required": false,
+      "default": ""
+    },
+    "github_token": {
+      "type": "string",
+      "title": "GitHub token",
+      "description": "Used to read issues and open pull requests.",
+      "required": false,
+      "default": "",
+      "sensitive": true
+    },
+    "gitlab_api_url": {
+      "type": "string",
+      "title": "GitLab API address (optional)",
+      "description": "Only for a self-hosted GitLab. Leave empty for gitlab.com.",
+      "required": false,
+      "default": ""
+    },
+    "gitlab_token": {
+      "type": "string",
+      "title": "GitLab token",
+      "description": "Used to read issues and open merge requests.",
+      "required": false,
+      "default": "",
+      "sensitive": true
+    },
+    "jenkins_url": {
+      "type": "string",
+      "title": "Jenkins address",
+      "description": "For example https://jenkins.your-company.com. Used to create and run the tests job.",
+      "required": false,
+      "default": ""
+    },
+    "jenkins_user": {
+      "type": "string",
+      "title": "Jenkins user",
+      "description": "The user the Jenkins token belongs to.",
+      "required": false,
+      "default": ""
+    },
+    "jenkins_token": {
+      "type": "string",
+      "title": "Jenkins API token",
+      "description": "A token that can create and trigger the tests job.",
+      "required": false,
+      "default": "",
+      "sensitive": true
+    }
+  }
+}

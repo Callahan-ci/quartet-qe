@@ -33,6 +33,7 @@ final class ChatSession {
         If the project is not set up yet (quartet_start or quartet_onboarding says so), set it up first with the user: call quartet_onboarding
         and work through the open items one at a time, asking only what is missing and writing each answer with quartet_configure.
         Never ask for a token, password or key in the chat: name the variable and have the user run ./quartet-qe secret NAME in a terminal.
+        If Quartet QE was installed as a chat-app extension, tokens for Jira, Azure DevOps, GitHub, GitLab and Jenkins go in the extension's settings instead; quartet_secrets_status says which.
         Check each connection with quartet_verify. Then write the first test.
         Be a guide: explain in plain words why each extra (API specs, telemetry, test data, source code, git host, tracker, Jenkins) makes the tests better,
         offer them one at a time using the advice quartet_onboarding returns, and let the user skip any.
@@ -194,15 +195,21 @@ final class ChatSession {
     private Tool gated(Tool tool) {
         return new Tool(tool.def(), args -> {
             boolean setupTool = tool.name().equals("quartet_onboarding") || tool.name().equals("quartet_configure");
-            if (setupTool && isFramework(main.root) && SetupChoices.read(main.root) == null) {
+            if (setupTool && needsHome(main.root) && SetupChoices.read(main.root) == null) {
+                boolean starter = Starter.isStarter(main.root);
                 if (tool.name().equals("quartet_onboarding")) {
-                    ObjectNode out = decisions();
-                    out.put("why", "This folder is the Quartet QE framework, with a sample shop (ShopFlow) in it. Its environment and context belong to the demo, not to the user's product. "
+                    ObjectNode out = decisions(starter);
+                    out.put("why", starter
+                            ? "No tests repo is set up yet. Real tests live in their own repo, so first find out where."
+                            : "This folder is the Quartet QE framework, with a sample shop (ShopFlow) in it. Its environment and context belong to the demo, not to the user's product. "
                             + "Real tests live in their own repo, so first find out where.");
                     return out;
                 }
-                throw new IllegalStateException("This folder is the Quartet QE framework with a sample shop, and writing to it would change the demo. "
-                        + "Ask the user where their tests should live first: quartet_onboarding returns the questions, then call quartet_setup.");
+                throw new IllegalStateException(starter
+                        ? "No tests repo is set up yet, and this workspace is Quartet's own. Ask the user where their tests should live first: "
+                            + "quartet_onboarding returns the questions, then call quartet_setup."
+                        : "This folder is the Quartet QE framework with a sample shop, and writing to it would change the demo. "
+                            + "Ask the user where their tests should live first: quartet_onboarding returns the questions, then call quartet_setup.");
             }
             JsonNode result = tool.handler().call(args);
             if (tool.name().equals("quartet_configure")) refreshReadme();
@@ -224,6 +231,11 @@ final class ChatSession {
         return Files.isDirectory(root.resolve("demo-shopflow")) && Files.isDirectory(root.resolve("quartet-core"));
     }
 
+    /** True in the framework folder and in Quartet's own starter workspace: places where no real tests belong. */
+    private static boolean needsHome(Path root) {
+        return isFramework(root) || Starter.isStarter(root);
+    }
+
     /** The bundled sample stories run in this repo. Anything else is new work that needs a home. */
     private static boolean demoStory(JsonNode args) {
         return args.path("site").asText("").isBlank() && args.path("story_text").asText("").isBlank()
@@ -233,7 +245,7 @@ final class ChatSession {
     /** Applies what the user decided earlier, or returns the questions to ask. Null means carry on. */
     private JsonNode settingUp(JsonNode args) throws IOException {
         ObjectNode choices = SetupChoices.read(main.root);
-        boolean framework = isFramework(main.root);
+        boolean framework = needsHome(main.root);
         boolean demo = demoStory(args);
         if (choices != null) {
             String where = choices.path("testsRepo").asText("here");
@@ -249,11 +261,11 @@ final class ChatSession {
         }
         if (!framework || demo) return null; // a tests repo needs no questions: its first story can start at once
 
-        return decisions();
+        return decisions(Starter.isStarter(main.root));
     }
 
     /** The two things to ask together before setting up in the framework folder. Everything else has a default. */
-    private static ObjectNode decisions() {
+    private static ObjectNode decisions(boolean starter) {
         ObjectNode out = Json.obj().put("needs_decisions", true);
         ArrayNode questions = out.putArray("ask_the_user");
         questions.addObject().put("id", "product_name").put("question", "What is your product called?")
@@ -262,7 +274,7 @@ final class ChatSession {
         ArrayNode options = where.putArray("options");
         options.addObject().put("value", "new").put("meaning", "A new tests repo next to this one. Recommended: tests belong in their own repo, one per product. Quartet creates it, ready to use.");
         options.addObject().put("value", "existing").put("meaning", "A tests repo you already have. Ask for its folder.");
-        options.addObject().put("value", "here").put("meaning", "This folder, which is the Quartet QE framework itself. Fine for a trial, but not where real tests belong.");
+        if (!starter) options.addObject().put("value", "here").put("meaning", "This folder, which is the Quartet QE framework itself. Fine for a trial, but not where real tests belong.");
         out.put("next", "Ask these two together, in plain words. Do not ask about Jenkins or anything else yet: that comes later, as an optional item. "
                 + "If an answer is empty or unclear, use the recommended default (a new repo, named after the product, or ../my-product-tests) and carry on rather than asking again. "
                 + "Then call quartet_setup with name and tests_repo, and straight after call quartet_onboarding and keep going with the next open item.");
@@ -281,10 +293,11 @@ final class ChatSession {
         String name = args.path("name").asText("").strip();
         String where = args.path("tests_repo").asText("");
         Path target = origin;
-        if (isFramework(origin)) {
-            if (where.isBlank()) where = "new"; // never stall: the recommended choice is the default
+        if (needsHome(origin)) {
+            boolean starter = Starter.isStarter(origin);
+            if (where.isBlank() || (starter && where.equals("here"))) where = "new"; // never stall: the recommended choice is the default
             switch (where) {
-                case "new" -> target = createTestsRepo(args.path("path").asText(name.isBlank() ? "" : "../" + slug(name) + "-tests"));
+                case "new" -> target = createTestsRepo(args.path("path").asText(name.isBlank() ? "" : (starter ? "" : "../") + slug(name) + "-tests"));
                 case "existing" -> {
                     String given = args.path("path").asText("");
                     if (given.isBlank()) throw new IllegalArgumentException("Give the folder of the existing tests repo as path.");
@@ -354,12 +367,18 @@ final class ChatSession {
 
     /** Creates a tests repo from the skeleton with the project's own script. Nothing is pushed. */
     private Path createTestsRepo(String given) throws IOException, InterruptedException {
-        Path target = given.isBlank() ? main.root.getParent().resolve("my-product-tests")
-                : (Path.of(given).isAbsolute() ? Path.of(given) : main.root.resolve(given)).normalize();
+        // The framework folder creates repos next to itself. An installed release has no neighbours, so they go in ~/quartet-tests.
+        boolean starter = Starter.isStarter(main.root);
+        Path parent = starter ? Starter.testsFolder() : main.root.getParent();
+        Path base = starter ? Starter.testsFolder() : main.root;
+        Path target = given.isBlank() ? parent.resolve("my-product-tests")
+                : (Path.of(given).isAbsolute() ? Path.of(given) : base.resolve(given)).normalize();
+        if (starter && target.getParent() != null && target.getParent().equals(Starter.testsFolder())) Files.createDirectories(Starter.testsFolder());
         requireSafeNewRepoPath(target);
-        Path script = main.root.resolve("new-tests-repo.sh");
-        if (!Files.isRegularFile(script)) throw new IllegalStateException("new-tests-repo.sh is missing from " + main.root + ".");
-        Process process = new ProcessBuilder("bash", script.toString(), target.toString()).directory(main.root.toFile())
+        Path home = starter ? Starter.installHome() : main.root;
+        Path script = starter && home != null ? home.resolve("scripts/new-tests-repo.sh") : main.root.resolve("new-tests-repo.sh");
+        if (!Files.isRegularFile(script)) throw new IllegalStateException("new-tests-repo.sh is missing from " + script.getParent() + ".");
+        Process process = new ProcessBuilder("bash", script.toString(), target.toString()).directory((home != null ? home : main.root).toFile())
                 .redirectErrorStream(true).start();
         String output = new String(process.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         if (process.waitFor() != 0) {
@@ -376,7 +395,7 @@ final class ChatSession {
             Path contextDir = main.root.resolve(main.settings.path("context").asText("context"));
             siteEnvironment = SiteEnvironment.ensure(main.root, contextDir, site);
             // In a tests repo the repo itself remembers it. The framework folder's demo environment is left alone.
-            if (!isFramework(main.root)) SiteEnvironment.select(main.root, siteEnvironment);
+            if (!needsHome(main.root)) SiteEnvironment.select(main.root, siteEnvironment);
         }
         main = new Main(main.root, siteEnvironment); // read the project again, so nothing needs a restart
         String reference = args.path("story").asText("").strip();

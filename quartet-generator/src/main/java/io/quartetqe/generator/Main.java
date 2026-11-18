@@ -59,7 +59,17 @@ public final class Main {
     }
 
     private static int dispatch(String command, Map<String, String> options) throws Exception {
-        Main main = new Main(Path.of("").toAbsolutePath(), options.get("environment"));
+        // QUARTET_TESTS_REPO lets a launcher, such as a chat tool's installed extension, name the tests repo to use.
+        String named = System.getenv("QUARTET_TESTS_REPO");
+        Path root = named != null && !named.isBlank() ? Path.of(named).toAbsolutePath() : Path.of("").toAbsolutePath();
+        if (!Files.isRegularFile(root.resolve("quartet.yaml"))) {
+            if (!command.equals("mcp")) {
+                throw new IllegalStateException("There is no quartet.yaml in " + root + ", so this is not a Quartet QE tests repo. "
+                        + "Run this inside one, or start the chat setup with: quartet-qe mcp");
+            }
+            root = Starter.prepare();
+        }
+        Main main = new Main(root, options.get("environment"));
         return switch (command) {
             case "run" -> main.run(options);
             case "report" -> main.report(options);
