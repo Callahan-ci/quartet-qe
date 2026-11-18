@@ -334,20 +334,25 @@ final class Onboarding {
         }
         out.put("env_file", Files.isRegularFile(main.root.resolve(".env")) ? "present, and ignored by git" : "not created yet");
         out.put("next", missing.isEmpty() ? "Nothing to save. Use quartet_verify to check the connections."
-                : secretAdvice(missing, main.root, "extension".equals(System.getenv("QUARTET_LAUNCHED_BY"))));
+                : secretAdvice(missing, main.root, System.getenv("QUARTET_LAUNCHED_BY")));
         return out;
     }
 
     /** The tokens that have a field in the chat-app extension's settings form. */
     static final java.util.Set<String> EXTENSION_FIELDS = java.util.Set.of("JIRA_TOKEN", "ADO_TOKEN", "GITHUB_TOKEN", "GITLAB_TOKEN", "JENKINS_TOKEN");
 
-    /** What to tell the user about secrets that are still missing. An extension install has a settings form for the common ones. */
-    static String secretAdvice(List<String> missing, Path root, boolean extension) {
-        List<String> inSettings = extension ? missing.stream().filter(EXTENSION_FIELDS::contains).toList() : List.of();
+    /**
+     * What to tell the user about secrets that are still missing. An extension or plugin install has a settings form for the
+     * common ones; {@code launchedBy} is "extension", "plugin" or anything else for a plain install.
+     */
+    static String secretAdvice(List<String> missing, Path root, String launchedBy) {
+        boolean form = "extension".equals(launchedBy) || "plugin".equals(launchedBy);
+        List<String> inSettings = form ? missing.stream().filter(EXTENSION_FIELDS::contains).toList() : List.of();
         List<String> inTerminal = missing.stream().filter(n -> !inSettings.contains(n)).toList();
         StringBuilder advice = new StringBuilder();
         if (!inSettings.isEmpty()) {
-            advice.append("Tell the user to add ").append(inSettings).append(" in the Quartet QE extension's settings in their chat app, then restart the chat app's Quartet server so it picks them up. ");
+            String where = "plugin".equals(launchedBy) ? "the Quartet QE plugin's settings (Claude Code asks for them when the plugin is enabled)" : "the Quartet QE extension's settings in their chat app";
+            advice.append("Tell the user to add ").append(inSettings).append(" in ").append(where).append(", then restart Quartet's server so it picks them up. ");
         }
         if (!inTerminal.isEmpty()) {
             advice.append("Ask the user to run these in a terminal in ").append(root).append(", one at a time. The value is typed hidden and never shown to you: ")

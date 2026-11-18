@@ -334,3 +334,14 @@ Run `./quartet-qe doctor` any time to check your setup.
 - Run `./quartet-qe run --prove` on an important story to see the tests catch planted bugs.
 - Wire `publish` into your team's flow so every story arrives as a pull request with its review attached.
 - Read the [README](README.md) for how the checks work.
+
+## Use it as a Claude plugin
+
+In Claude Code, add this repository as a marketplace and install the plugin. You do not need to clone anything:
+
+```
+/plugin marketplace add goughliam1813/quartet-qe
+/plugin install quartet-qe@quartet-qe
+```
+
+The plugin asks for the optional settings (your tests folder and your Jira, Azure DevOps, GitHub, GitLab and Jenkins details), and on first use it fetches the matching Quartet QE release once, checks its SHA-256, and unpacks it in `~/.quartet/releases`. Java 21 or newer is needed. See `plugin/README.md` for what it runs, sends and fetches.

@@ -73,10 +73,16 @@ class ExtensionManifestTest {
 
     @Test
     void anExtensionInstallPointsTheUserToTheSettingsFormForTheTokensItHas() {
-        String advice = Onboarding.secretAdvice(List.of("JIRA_TOKEN", "JENKINS_GIT_CREDENTIALS"), Path.of("/repo"), true);
+        String advice = Onboarding.secretAdvice(List.of("JIRA_TOKEN", "JENKINS_GIT_CREDENTIALS"), Path.of("/repo"), "extension");
         assertThat(advice).contains("extension's settings").contains("[JIRA_TOKEN]").contains("./quartet-qe secret JENKINS_GIT_CREDENTIALS");
         assertThat(advice).doesNotContain("./quartet-qe secret JIRA_TOKEN");
-        assertThat(Onboarding.secretAdvice(List.of("JIRA_TOKEN"), Path.of("/repo"), false)).contains("./quartet-qe secret JIRA_TOKEN").doesNotContain("extension");
+        assertThat(Onboarding.secretAdvice(List.of("JIRA_TOKEN"), Path.of("/repo"), null)).contains("./quartet-qe secret JIRA_TOKEN").doesNotContain("extension");
+    }
+
+    @Test
+    void aPluginInstallPointsToThePluginSettings() {
+        String advice = Onboarding.secretAdvice(List.of("GITHUB_TOKEN"), Path.of("/repo"), "plugin");
+        assertThat(advice).contains("plugin's settings").contains("[GITHUB_TOKEN]").doesNotContain("extension");
     }
 
     private static void copy(Path from, Path to) throws IOException {

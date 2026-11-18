@@ -1,0 +1,112 @@
+{
+  "name": "quartet-qe",
+  "displayName": "Quartet QE",
+  "version": "0.1.0",
+  "description": "Write end-to-end tests from a user story (API, Kafka, databases, web, phone browsers, Android), have the AI check its own work, replay them with no AI, and review everything on one page before it merges.",
+  "author": {
+    "name": "Liam Gough",
+    "url": "https://github.com/goughliam1813"
+  },
+  "homepage": "https://github.com/goughliam1813/quartet-qe",
+  "repository": "https://github.com/goughliam1813/quartet-qe",
+  "license": "MIT",
+  "icon": "./.claude-plugin/icon.png",
+  "documentationUrl": "https://github.com/goughliam1813/quartet-qe/blob/main/GETTING-STARTED.md",
+  "supportUrl": "https://github.com/goughliam1813/quartet-qe/issues",
+  "privacyPolicyUrl": "https://github.com/goughliam1813/quartet-qe/blob/main/PRIVACY.md",
+  "keywords": [
+    "testing",
+    "qa",
+    "end-to-end",
+    "test-automation",
+    "playwright",
+    "android",
+    "kafka",
+    "postgres"
+  ],
+  "userConfig": {
+    "tests_repo": {
+      "type": "directory",
+      "title": "Tests folder (optional)",
+      "description": "An existing Quartet QE tests repo to work in. Leave empty to be asked in the chat where new tests should live.",
+      "default": ""
+    },
+    "jira_url": {
+      "type": "string",
+      "title": "Jira address",
+      "description": "For example https://your-company.atlassian.net. Used to read stories from Jira.",
+      "default": ""
+    },
+    "jira_email": {
+      "type": "string",
+      "title": "Jira email",
+      "description": "The account the Jira token belongs to.",
+      "default": ""
+    },
+    "jira_token": {
+      "type": "string",
+      "title": "Jira API token",
+      "description": "A token that can read issues and, if you want, comment on them.",
+      "default": "",
+      "sensitive": true
+    },
+    "ado_org_url": {
+      "type": "string",
+      "title": "Azure DevOps organisation",
+      "description": "For example https://dev.azure.com/your-org.",
+      "default": ""
+    },
+    "ado_token": {
+      "type": "string",
+      "title": "Azure DevOps token",
+      "description": "A personal access token with the least access it needs.",
+      "default": "",
+      "sensitive": true
+    },
+    "github_api_url": {
+      "type": "string",
+      "title": "GitHub API address (optional)",
+      "description": "Only for GitHub Enterprise. Leave empty for github.com.",
+      "default": ""
+    },
+    "github_token": {
+      "type": "string",
+      "title": "GitHub token",
+      "description": "Used to read issues and open pull requests.",
+      "default": "",
+      "sensitive": true
+    },
+    "gitlab_api_url": {
+      "type": "string",
+      "title": "GitLab API address (optional)",
+      "description": "Only for a self-hosted GitLab. Leave empty for gitlab.com.",
+      "default": ""
+    },
+    "gitlab_token": {
+      "type": "string",
+      "title": "GitLab token",
+      "description": "Used to read issues and open merge requests.",
+      "default": "",
+      "sensitive": true
+    },
+    "jenkins_url": {
+      "type": "string",
+      "title": "Jenkins address",
+      "description": "For example https://jenkins.your-company.com.",
+      "default": ""
+    },
+    "jenkins_user": {
+      "type": "string",
+      "title": "Jenkins user",
+      "description": "The user the Jenkins token belongs to.",
+      "default": ""
+    },
+    "jenkins_token": {
+      "type": "string",
+      "title": "Jenkins API token",
+      "description": "A token that can create and trigger the tests job.",
+      "default": "",
+      "sensitive": true
+    }
+  }
+}
