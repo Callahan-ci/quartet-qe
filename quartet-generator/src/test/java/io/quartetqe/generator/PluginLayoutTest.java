@@ -114,6 +114,8 @@ class PluginLayoutTest {
         // The checksum check comes before anything is unpacked or started.
         assertThat(script.indexOf("does not match the checksum")).isLessThan(script.indexOf("unzip -q"));
         assertThat(script.indexOf("unzip -q")).isLessThan(script.lastIndexOf("exec \"$ROOT/bin/quartet-qe\""));
+        // exec skips the exit trap, so the download is removed by hand before the program starts (it was 80 MB left behind).
+        assertThat(script.lastIndexOf("rm -rf \"$WORK\"")).isLessThan(script.lastIndexOf("exec \"$ROOT/bin/quartet-qe\""));
         // Nothing is piped into a shell, and it never evaluates text it fetched.
         assertThat(script).doesNotContain("| sh").doesNotContain("| bash").doesNotContain("eval ").doesNotContain("curl -s | ");
         assertThat(script).contains("https://github.com/goughliam1813/quartet-qe/releases/download/");
