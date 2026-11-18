@@ -1,0 +1,12 @@
+{
+  "name": "quartet-qe",
+  "owner": { "name": "Liam Gough", "url": "https://github.com/goughliam1813" },
+  "metadata": { "description": "Quartet QE: write end-to-end tests from a user story and prove they work." },
+  "plugins": [
+    {
+      "name": "quartet-qe",
+      "source": "./plugin",
+      "description": "Write end-to-end tests from a user story (API, Kafka, databases, web, phone browsers, Android), have the AI check its own work, replay them with no AI, and review everything on one page before it merges."
+    }
+  ]
+}

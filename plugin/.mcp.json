@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "quartet-qe": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/start-quartet.sh",
+      "args": [],
+      "env": {
+        "QUARTET_LAUNCHED_BY": "plugin",
+        "QUARTET_TESTS_REPO": "${user_config.tests_repo}",
+        "JIRA_URL": "${user_config.jira_url}",
+        "JIRA_EMAIL": "${user_config.jira_email}",
+        "JIRA_TOKEN": "${user_config.jira_token}",
+        "ADO_ORG_URL": "${user_config.ado_org_url}",
+        "ADO_TOKEN": "${user_config.ado_token}",
+        "GITHUB_API_URL": "${user_config.github_api_url}",
+        "GITHUB_TOKEN": "${user_config.github_token}",
+        "GITLAB_API_URL": "${user_config.gitlab_api_url}",
+        "GITLAB_TOKEN": "${user_config.gitlab_token}",
+        "JENKINS_URL": "${user_config.jenkins_url}",
+        "JENKINS_USER": "${user_config.jenkins_user}",
+        "JENKINS_TOKEN": "${user_config.jenkins_token}"
+      }
+    }
+  }
+}
