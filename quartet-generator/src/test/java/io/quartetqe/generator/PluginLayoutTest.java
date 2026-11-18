@@ -62,7 +62,13 @@ class PluginLayoutTest {
         assertThat(m.path("license").asText()).isEqualTo("MIT");
         assertThat(m.path("version").asText()).matches("\\d+\\.\\d+\\.\\d+");
         assertThat(PLUGIN.resolve("LICENSE")).exists();
+        // The directory reads these for the listing: the icon (a square PNG, 512 to 2048 px) and three https links.
+        assertThat(m.path("icon").asText()).isEqualTo("./.claude-plugin/icon.png");
         assertThat(PLUGIN.resolve(".claude-plugin/icon.png")).exists();
+        java.awt.image.BufferedImage icon = javax.imageio.ImageIO.read(PLUGIN.resolve(".claude-plugin/icon.png").toFile());
+        assertThat(icon.getWidth()).isEqualTo(icon.getHeight()).isBetween(512, 2048);
+        assertThat(Files.size(PLUGIN.resolve(".claude-plugin/icon.png"))).isLessThan(2L * 1024 * 1024);
+        for (String link : List.of("documentationUrl", "supportUrl", "privacyPolicyUrl")) assertThat(m.path(link).asText()).startsWith("https://");
     }
 
     @Test

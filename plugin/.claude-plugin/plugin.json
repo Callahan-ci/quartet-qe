@@ -10,6 +10,10 @@
   "homepage": "https://github.com/goughliam1813/quartet-qe",
   "repository": "https://github.com/goughliam1813/quartet-qe",
   "license": "MIT",
+  "icon": "./.claude-plugin/icon.png",
+  "documentationUrl": "https://github.com/goughliam1813/quartet-qe/blob/main/GETTING-STARTED.md",
+  "supportUrl": "https://github.com/goughliam1813/quartet-qe/issues",
+  "privacyPolicyUrl": "https://github.com/goughliam1813/quartet-qe/blob/main/PRIVACY.md",
   "keywords": [
     "testing",
     "qa",
