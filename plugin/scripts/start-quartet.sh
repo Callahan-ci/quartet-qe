@@ -71,4 +71,7 @@ chmod +x "$WORK/unpacked/bin/quartet-qe"
 if [ ! -x "$ROOT/bin/quartet-qe" ]; then
   mv "$WORK/unpacked" "$ROOT" 2>/dev/null || [ -x "$ROOT/bin/quartet-qe" ] || fail "Could not install into $ROOT"
 fi
+# exec replaces this shell, so its exit trap would never run: remove the download now.
+rm -rf "$WORK"
+trap - EXIT INT TERM
 exec "$ROOT/bin/quartet-qe" mcp
