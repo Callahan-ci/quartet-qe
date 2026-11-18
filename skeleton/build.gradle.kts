@@ -24,7 +24,7 @@ val configuredEnvironment: String = file("quartet.yaml").takeIf { it.exists() }?
 dependencies {
     // The Quartet runtime with the test libraries it uses (JUnit and AssertJ).
     testImplementation(fileTree("$quartetHome/lib") { include("*.jar") })
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")
 }
 
 // ./gradlew test -Pwatch opens a real browser window and slows each step down so you can follow it.
