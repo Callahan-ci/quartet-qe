@@ -32,6 +32,29 @@ This was a hands-on review. Each suspected hole was tried against the real syste
 | 10 | The chat's request and answer folder was readable by other users of the machine. | Local disclosure on a shared machine. | The folder is private to the user. |
 | 11 | CI ran with default token permissions, and dependencies had no update checks. | Wider blast radius if a workflow were compromised; slow patching. | CI is read-only, and Dependabot is enabled for Gradle and GitHub Actions. |
 
+## Hardening, 16 November 2026
+
+A second pass, aimed at what a steered AI could reach through Quartet's own tools and at how releases are built. As before, each
+hole was tried against the real code first (the new tests failed before the fix), then fixed.
+
+| # | Finding | Impact | Fix |
+| --- | --- | --- | --- |
+| 12 | **A "local repo" could be any folder.** `quartet_configure` accepted any path, including `/`, and `repo_read` returned any file under it. This was missed in the first review. | A steered AI could read SSH keys, tokens or other projects' secrets and return them to the chat. | A local repo must be a git checkout (or a folder inside one) inside your home folder, not the home folder itself and not anything hidden. This is checked when it is added and again every time it is read, since `repos.yaml` can come from a repo someone else wrote. |
+| 13 | **Symbolic links led out of the repo.** A link inside the context folder or a referenced repo could point anywhere, and reads and writes followed it. | Reading a file outside the repo, or writing one: a context note, a generated test, a story or a saved secret could land in another place. | Every read and write the AI can trigger now checks the real path, and refuses a link that leads out. A link inside a repo is never written through, and a saved secret is never written through a linked `.env`. |
+| 14 | **Credential files could be shown.** `repo_read` and the context tools would return `.env` files, keys and `.git/config` (which can hold a token in a remote address). | Secrets returned to the chat. | `.env*`, `.git`, `.ssh`, `.aws`, `.npmrc`, `.netrc`, private keys and certificates are never listed or returned. |
+| 15 | **AI-written tests saw the whole environment.** The test run inherited every variable of the session, including Jira, GitHub and Jenkins tokens and unrelated cloud keys. | Code the AI wrote could read and use them. | A test run gets the basics (path, home, Java, Gradle, browser and device tools, proxies, Quartet's own settings), the variables the environment file names with `${NAME}`, and `QUARTET_PASS_ENV`. Saved secrets reach it only if the environment file reads them. `QUARTET_INHERIT_ENV=true` turns the filter off. |
+
+Release builds are also tighter:
+
+- Every GitHub Action in the workflows is pinned to a commit, and Dependabot keeps the pins current.
+- The Gradle download is pinned by checksum, and every library and plugin is checked against `gradle/verification-metadata.xml`:
+  a changed or tampered download fails the build. After a dependency change, run `scripts/update-checksums.sh` and review the diff.
+- Each release carries a software bill of materials (`.cdx.json`), a `SHA256SUMS` file and, for a public repository, build provenance
+  that GitHub signs. Check a download with `shasum -a 256 -c SHA256SUMS` and `gh attestation verify <file> --repo goughliam1813/quartet-qe`.
+- The extension bundles are signed when a signing certificate is configured for the repository (secrets `MCPB_CERT_PEM` and
+  `MCPB_KEY_PEM`). **Until one is, they are published unsigned**, and the release log says so. Quartet never signs with a self-made
+  certificate, because that would look like assurance without being any.
+
 ## What you should still know
 
 These are limits and trust assumptions, not fixed bugs.
@@ -43,7 +66,7 @@ These are limits and trust assumptions, not fixed bugs.
 - **Recordings and reports contain what was typed or shown.** Secrets that Quartet knows about are removed. A password that an AI typed from a story is not known to it, so use test accounts and keep real credentials in `.env`.
 - **A chat tool may keep what you type.** Quartet's tools refuse tokens and passwords, and secrets are saved with `./quartet-qe secret NAME`, but a secret pasted into a chat may already be stored by that tool. Rotate it.
 - **Downloads check the address when they connect.** A hostile DNS server that changes its answer between the check and the request is not covered.
-- **Symlinks inside a repo** can redirect a write to another place. Not guarded.
+- **Quartet is not sandboxed.** As a chat-app extension it runs with your user's permissions, and the app says so when you install it. The path and environment limits above narrow what Quartet's own tools reach; they are not an operating-system sandbox. The server process itself holds the tokens you gave it. Only test runs get the filtered environment.
 - **There has been no outside audit.** Dependency update checks are on, but there is no deeper scan of third-party code.
 
 ## Good practice

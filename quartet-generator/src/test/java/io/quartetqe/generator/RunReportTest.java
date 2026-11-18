@@ -51,20 +51,66 @@ class RunReportTest {
     void theHtmlPageLeadsWithTheVerdictAndEscapesFailureText(@TempDir Path dir) throws Exception {
         Path results = dir.resolve("test-results");
         Files.createDirectories(results);
-        Files.writeString(results.resolve("TEST-t.xml"), XML);
+        Files.writeString(results.resolve("TEST-t.xml"), XML.replace("expected: 409 but was: 200", "expected &lt;b&gt;409&lt;/b&gt; but was: 200"));
 
         RunReport.Data data = RunReport.read(results, null);
         String page = RunReport.html(data);
 
-        assertThat(page).contains("1</span> passed").contains("1</span> failed").contains("1</span> skipped");
-        assertThat(page).contains("<span class=\"bad\">Failed</span>").contains("expected: 409 but was: 200");
+        assertThat(page).contains("<span class=\"tag warn\">1 test failed.</span>").contains("<strong>1 of 3</strong> tests passed, 1 skipped");
+        assertThat(page).contains("Passed</span>").contains("Failed</span>").contains("Skipped</span>").contains("3.40 s");
+        assertThat(page).contains("expected &lt;b&gt;409&lt;/b&gt; but was: 200").doesNotContain("<b>409</b>");
         assertThat(page).doesNotContain("at generated.t.T.ordersReject");
-        assertThat(page).contains("0</span> recordings replayed");
-        assertThat(page).contains("<th>Time</th>").contains("3.40 s").contains("3.5</span> s run time");
+        assertThat(page).contains("tests passed").contains("steps replayed, no AI").contains("3.5 s");
     }
 
     @Test
-    void aFailureScreenshotIsLinkedFromItsTest(@TempDir Path dir) throws Exception {
+    void anAllGreenRunWithNoAiSaysSo(@TempDir Path dir) throws Exception {
+        Path results = dir.resolve("test-results");
+        Files.createDirectories(results);
+        Files.writeString(results.resolve("TEST-t.xml"), "<testsuite name=\"s\" tests=\"1\"><testcase name=\"pageFits\" classname=\"generated.t.T\" time=\"0.1\"/></testsuite>");
+        Path audit = dir.resolve("acts.jsonl");
+        Files.writeString(audit, "{\"test\":\"T.pageFits\",\"instruction\":\"Open it\",\"why\":\"w\",\"source\":\"REPLAYED\",\"steps\":1,\"inputTokens\":0,\"outputTokens\":0,\"model\":\"x\"}\n");
+        String page = RunReport.html(RunReport.read(results, audit));
+        assertThat(page).contains("All <span class=\"tag\">passed.</span>").contains("The AI was not needed: every step was replayed from a recording.");
+    }
+
+    @Test
+    void eachTestShowsItsActsStepsAndScreenshotsWithAClickToEnlarge(@TempDir Path dir) throws Exception {
+        Path results = dir.resolve("test-results");
+        Files.createDirectories(results);
+        Files.writeString(results.resolve("TEST-t.xml"), XML);
+        Path audit = dir.resolve("acts.jsonl");
+        Files.writeString(audit, """
+            {"test":"T.pageFits","instruction":"Open the <home> page","why":"arrivals","source":"REPLAYED","steps":2,"inputTokens":0,"outputTokens":0,"model":"x","trace":[{"tool":"screen_open","args":"{\\"path\\":\\"/\\"}","result":"{\\"title\\":\\"Home\\"}"},{"tool":"screen_tap","args":"button Buy","error":true}],"shots":[{"target":"site-web","file":"screenshots/T.pageFits.act1.site-web.png"}]}
+            {"test":"T.ordersReject","instruction":"Order too many","why":"stock","source":"HANDED_OFF","steps":3,"inputTokens":9,"outputTokens":1,"model":"m"}
+            {"test":"Elsewhere.thing","instruction":"Not tied to a test","why":"","source":"LIVE","steps":1,"inputTokens":0,"outputTokens":0,"model":"m"}
+            """);
+        String page = RunReport.html(RunReport.read(results, audit));
+
+        // The act sits under its own test, with its steps and its screenshot.
+        int test = page.indexOf("pageFits"), act = page.indexOf("Open the &lt;home&gt; page"), other = page.indexOf("ordersReject");
+        assertThat(test).isLessThan(act);
+        assertThat(act).isLessThan(other);
+        assertThat(page).contains("2 steps").contains("<b>screen_open</b>").contains("class=\"err\"");
+        assertThat(page).contains("src=\"screenshots/T.pageFits.act1.site-web.png\"").contains("href=\"#shot1\"").contains("id=\"shot1\"");
+        assertThat(page).contains("Replayed").contains("Handed to the AI").contains("Other acts").contains("Not tied to a test");
+        assertThat(page).doesNotContain("<home>");
+    }
+
+    @Test
+    void theStylesheetIsWrittenBesideThePageForJenkins(@TempDir Path dir) throws Exception {
+        Path results = dir.resolve("test-results");
+        Files.createDirectories(results);
+        Files.writeString(results.resolve("TEST-t.xml"), XML);
+        Path out = dir.resolve("out/report.html");
+        RunReport.write(RunReport.read(results, null), out);
+        assertThat(out).exists();
+        assertThat(dir.resolve("out/quartet-report.css")).exists();
+        assertThat(Files.readString(out)).contains("href=\"quartet-report.css\"").contains("<style>");
+    }
+
+    @Test
+    void aFailureScreenshotIsShownUnderItsTest(@TempDir Path dir) throws Exception {
         Path results = dir.resolve("test-results");
         Files.createDirectories(results);
         Files.writeString(results.resolve("TEST-t.xml"), XML);
@@ -73,10 +119,9 @@ class RunReportTest {
         Files.write(screenshots.resolve("generated.t.T.ordersReject.desktop.png"), new byte[] {1});
         Files.write(screenshots.resolve("unrelated.name.png"), new byte[] {1});
 
-        RunReport.Data data = RunReport.read(results, null, screenshots);
-        String page = RunReport.html(data);
+        String page = RunReport.html(RunReport.read(results, null, screenshots));
 
-        assertThat(page).contains("<a href=\"screenshots/generated.t.T.ordersReject.desktop.png\">screenshot</a>");
+        assertThat(page).contains("src=\"screenshots/generated.t.T.ordersReject.desktop.png\"").contains("when it failed");
         assertThat(page).doesNotContain("unrelated.name");
     }
 

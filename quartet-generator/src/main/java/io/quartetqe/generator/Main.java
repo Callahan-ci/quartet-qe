@@ -159,6 +159,9 @@ public final class Main {
         // Tests see the project's .env too. A real environment variable already reaches them, so it is left alone.
         Map<String, String> variables = new HashMap<>(io.quartetqe.core.DotEnv.read(root.resolve(".env")));
         variables.keySet().removeAll(System.getenv().keySet());
+        // Only the saved secrets the environment file reads reach the tests. A Jira or GitHub token has no business there.
+        java.util.Set<String> needed = io.quartetqe.core.ChildEnvironment.referencedBy(root.resolve(environmentPath));
+        variables.keySet().removeIf(name -> !io.quartetqe.core.ChildEnvironment.mayReachTests(name, needed, System.getenv()));
         variables.put("QUARTET_ENV", root.resolve(environmentPath).toString());
         variables.put("QUARTET_MODE", "auto");
         return TestRunner.fromSettings(root).withEnvironment(variables);
@@ -208,7 +211,7 @@ public final class Main {
         System.out.printf("Tests    %d written", summary.written());
         if (run) System.out.printf(": %d passed, %d failed, %d skipped", summary.passed(), summary.failed(), summary.skipped());
         if (faults != null) System.out.printf(". %.0f%% of planted bugs caught", faults.detectionRate() * 100);
-        System.out.printf("%nReview   %s (%s)%n", root.relativize(reportDir(story).resolve("review.md")),
+        System.out.printf("%nReview   %s (%s)%n", root.relativize(reportDir(story).resolve("review.html")),
                 summary.approved() ? "ready to merge" : summary.attention() + " item(s) need your attention");
         return new Outcome(story, result, summary);
     }
@@ -364,8 +367,10 @@ public final class Main {
     /** One page for the last run: the build's own JUnit XML plus the audit of every act. */
     private int report(Map<String, String> options) throws IOException {
         Path results = Path.of(options.getOrDefault("results", settings.path("tests").path("results").asText()));
-        Path module = results.getParent() != null && results.getParent().getParent() != null
-                ? results.getParent().getParent() : root;
+        // The module is the folder that holds the build folder: the repo itself, or e2e-tests in the framework folder.
+        Path module = root.resolve(results).normalize();
+        while (module != null && !"build".equals(module.getFileName() == null ? "" : module.getFileName().toString())) module = module.getParent();
+        module = module == null || module.getParent() == null ? root : module.getParent();
         Path audit = options.containsKey("audit")
                 ? Path.of(options.get("audit"))
                 : module.resolve("build/quartet-report/acts.jsonl");
@@ -375,7 +380,7 @@ public final class Main {
                 ? Path.of(options.get("out"))
                 : module.resolve("build/quartet-report/report.html");
         RunReport.write(data, out);
-        System.out.println("Report   " + out);
+        System.out.println("Report   " + (out.isAbsolute() && out.startsWith(root) ? root.relativize(out) : out));
         if (options.containsKey("dry-run")) {
             System.out.println();
             System.out.println(RunReport.markdown(data));

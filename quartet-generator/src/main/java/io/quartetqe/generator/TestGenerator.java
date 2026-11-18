@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quartetqe.core.AgentLoop;
 import io.quartetqe.core.Json;
+import io.quartetqe.core.SafePaths;
 import io.quartetqe.core.Llm;
 import io.quartetqe.core.Tool;
 import java.io.IOException;
@@ -245,6 +246,7 @@ public final class TestGenerator {
         String packageLine = "package generated." + story.slug() + ";";
         if (!content.contains(packageLine)) throw new IllegalArgumentException("The file must start with: " + packageLine);
         Path directory = outputRoot.resolve("generated").resolve(story.slug());
+        SafePaths.writable(outputRoot, directory.resolve(fileName));
         Files.createDirectories(directory);
         Files.writeString(directory.resolve(fileName), content);
         files.put(fileName, content);

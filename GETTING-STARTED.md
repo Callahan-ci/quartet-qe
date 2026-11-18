@@ -39,7 +39,7 @@ To see the chat path as well, run `./demo-chat.sh`. It starts the real MCP serve
 Open the review page it produced:
 
 ```bash
-open reports/SHOP-142/review.md      # macOS. On Linux use xdg-open
+open reports/SHOP-142/review.html    # macOS. On Linux use xdg-open
 ```
 
 It lists anything that needs your attention first, then what passed and the evidence for each acceptance criterion.
@@ -205,7 +205,7 @@ This is the one step that uses the AI. It:
 3. compiles them and checks them against your principles, fixing what blocks,
 4. asks an independent second opinion through four lenses: Product Designer, Tech Lead, QA and DevOps,
 5. runs them against your environment and records each verified step,
-6. writes `reports/SHOP-142/review.md`.
+6. writes `reports/SHOP-142/review.html` (and the same review as `review.md`).
 
 Useful options:
 
@@ -217,7 +217,7 @@ Useful options:
 
 ## 8. Review, then replay with no AI
 
-Open `reports/<story>/review.md`. Anything that needs your attention is at the top. Read the generated tests like any other code, then commit the tests and the `recordings/` folder together.
+Open `reports/<story>/review.html`. Anything that needs your attention is at the top. Read the generated tests like any other code, then commit the tests and the `recordings/` folder together.
 
 Now run them with no AI:
 
@@ -321,6 +321,7 @@ A hosted Chromium (browserless, Kernel, a Docker sidecar) can replace the local 
 | The AI service is busy or over quota | The tool retries patiently and shows progress. If it keeps failing, check your quota or switch provider in `.env` |
 | A test fails with `no recording` | Run `./quartet-qe run` once, or use `QUARTET_MODE=auto` |
 | A test fails with `Recording is stale` | The replay rules changed since it was recorded. Run `./quartet-qe run` to record again |
+| A test cannot see a variable I set | Test runs get only the basics and the variables the environment file names. Write it there as `${NAME}`, or list it in `QUARTET_PASS_ENV=NAME1,NAME2`. `QUARTET_INHERIT_ENV=true` turns the limit off. |
 | A step fails after a UI change | Run `./quartet-qe repair --file <Test.java> --selector '<package>.*'`. It fixes the test without weakening it. If the product is wrong, you get a bug report instead |
 | `Jenkins did not find the branch` | Push the branch, and check Jenkins can read the repo |
 | A host is blocked | Add it to `allowHosts` in your environment file, if you really mean to test it |

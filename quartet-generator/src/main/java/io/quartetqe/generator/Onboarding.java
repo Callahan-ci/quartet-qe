@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.quartetqe.core.DotEnv;
 import io.quartetqe.core.Json;
+import io.quartetqe.core.SafePaths;
 import io.quartetqe.core.Redactor;
 import io.quartetqe.core.Tool;
 import io.quartetqe.runtime.Environment;
@@ -416,7 +417,7 @@ final class Onboarding {
             }
         }
         if (!manifest.has("services")) manifest.putArray("services");
-        write(file, Json.YAML.writeValueAsString(manifest));
+        write(main, file, Json.YAML.writeValueAsString(manifest));
         return file;
     }
 
@@ -509,12 +510,12 @@ final class Onboarding {
         }
         if (!values.path("howToStart").asText("").isBlank()) environment.put("howToStart", values.path("howToStart").asText());
 
-        write(file, Json.YAML.writeValueAsString(environment));
+        write(main, file, Json.YAML.writeValueAsString(environment));
         try {
             Environment.load(file, DotEnv.merged(main.root));
         } catch (RuntimeException e) {
             if (before == null) Files.deleteIfExists(file);
-            else Files.writeString(file, before);
+            else { SafePaths.writable(main.root, file); Files.writeString(file, before); }
             throw new IllegalArgumentException("That target would not load, so nothing was changed: " + e.getMessage());
         }
         ObjectNode out = Json.obj().put("saved", main.root.relativize(file).toString()).put("target", name);
@@ -557,7 +558,9 @@ final class Onboarding {
         if (!Set.of("local", "github", "gitlab", "ado").contains(provider)) throw new IllegalArgumentException("provider must be local, github, gitlab or ado.");
         ObjectNode entry = Json.obj().put("name", name).put("provider", provider);
         if (provider.equals("local")) {
-            entry.put("path", need(values, "path"));
+            String given = need(values, "path");
+            SourceCheckouts.require(Path.of(given).isAbsolute() ? Path.of(given) : contextDir(main).resolve(given));
+            entry.put("path", given);
         } else {
             for (String field : List.of("owner", "repo", "ref", "project", "repository")) {
                 if (!values.path(field).asText("").isBlank()) entry.put(field, values.path(field).asText());
@@ -574,7 +577,7 @@ final class Onboarding {
             }
         }
         repos.add(entry);
-        write(file, Json.YAML.writeValueAsString(root));
+        write(main, file, Json.YAML.writeValueAsString(root));
         return Json.obj().put("saved", main.root.relativize(file).toString()).put("next", "Call quartet_verify what=repos to check it can be read.");
     }
 
@@ -586,6 +589,7 @@ final class Onboarding {
         if (!settings.isObject() || settings.isEmpty()) throw new IllegalArgumentException("settings is needed, for example {\"baseUrl\": \"https://company.atlassian.net\"}.");
         Path file = main.root.resolve(main.settings.path("connectors").asText("connectors.yaml"));
         // A repo starts without a connectors file. The first integration creates it, with every setting read from the environment.
+        SafePaths.writable(main.root, file);
         if (!Files.isRegularFile(file)) Files.writeString(file, Templates.connectors());
         List<String> lines = new ArrayList<>(Files.readAllLines(file));
         List<String> changed = new ArrayList<>();
@@ -620,6 +624,7 @@ final class Onboarding {
             if (!done) throw new IllegalArgumentException("'" + key + "' is not a setting of " + kind + " in " + file.getFileName() + ".");
             changed.add(key);
         }
+        SafePaths.writable(main.root, file);
         Files.write(file, lines);
 
         Main reloaded = fresh.get();
@@ -650,7 +655,7 @@ final class Onboarding {
         if (content == null) throw new IllegalArgumentException("No built-in file at " + path + ". Built in: " + Defaults.files().keySet());
         Path file = contextDir(main).resolve(path).normalize();
         if (Files.exists(file)) throw new IllegalStateException(path + " is already in this repo, so it is already changed here.");
-        write(file, content);
+        write(main, file, content);
         return Json.obj().put("saved", main.root.relativize(file).toString())
                 .put("next", "Edit the copy with context_file, for example to set a rule to warn or off. This repo now uses its own version of that file.");
     }
@@ -680,7 +685,7 @@ final class Onboarding {
         if (content.length() > 200_000) throw new IllegalArgumentException("That file is too large for a context note.");
         if (relative.matches("(?i).+\\.(yaml|yml)")) Json.parseYaml(content);
         if (relative.matches("(?i).+\\.json")) Json.parse(content);
-        write(file, content.endsWith("\n") ? content : content + "\n");
+        write(main, file, content.endsWith("\n") ? content : content + "\n");
         return Json.obj().put("saved", main.root.relativize(file).toString()).put("next", "Mention it in the story, or in a service or contract file, so the AI reads it.");
     }
 
@@ -723,7 +728,9 @@ final class Onboarding {
         return saved;
     }
 
-    private static void write(Path file, String content) throws IOException {
+    /** Writes a file inside the tests repo, refusing a symbolic link that would send it somewhere else. */
+    private static void write(Main main, Path file, String content) throws IOException {
+        SafePaths.writable(main.root, file);
         Files.createDirectories(file.getParent());
         Files.writeString(file, content);
     }

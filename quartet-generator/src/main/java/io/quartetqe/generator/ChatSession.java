@@ -121,6 +121,7 @@ final class ChatSession {
             {"type":"object","required":["file_name","content"],"properties":{
               "file_name":{"type":"string","description":"For example CheckoutTest.java"},"content":{"type":"string"}}}""", args -> {
             current();
+            io.quartetqe.core.SafePaths.writable(main.root, main.testSourceRoot().resolve("generated"));
             return record("write_test", args, TestGenerator.writeTest(main.testSourceRoot(), story, files,
                     args.path("file_name").asText(), args.path("content").asText()));
         }));
@@ -481,6 +482,7 @@ final class ChatSession {
                 : "SITE-" + Integer.toHexString(text.strip().hashCode() & 0xffff).toUpperCase();
         if (!heading.reset().find()) text = "# " + id + ": " + text.strip().lines().findFirst().orElse("Story").replaceFirst("^#+\\s*", "") + "\n\n" + text;
         Path file = main.root.resolve("stories").resolve(id + ".md");
+        io.quartetqe.core.SafePaths.writable(main.root, file);
         Files.createDirectories(file.getParent());
         Files.writeString(file, text.endsWith("\n") ? text : text + "\n");
         return file.toString();
@@ -580,7 +582,8 @@ final class ChatSession {
         refreshReadme();
 
         ObjectNode out = Json.obj().put("status", summary.approved() ? "ready_to_merge" : "needs_attention");
-        out.put("review_page", main.root.relativize(main.reportDir(item).resolve("review.md")).toString());
+        out.put("review_page", main.root.relativize(main.reportDir(item).resolve("review.html")).toString());
+        out.put("review_page_markdown", main.root.relativize(main.reportDir(item).resolve("review.md")).toString());
         out.put("tests_repo", main.root.toString());
         ArrayNode where = out.putArray("files_written");
         String prefix = main.root.relativize(main.testSourceRoot()) + "/generated/" + item.slug() + "/";

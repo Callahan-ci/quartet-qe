@@ -63,6 +63,8 @@ public final class DotEnv {
     public static void set(Path file, String name, String value) {
         if (!name.matches("[A-Z][A-Z0-9_]*")) throw new IllegalArgumentException("A secret name is capital letters, digits and underscores, such as JIRA_TOKEN.");
         if (value.contains("\n") || value.contains("\r")) throw new IllegalArgumentException("A secret cannot contain a line break.");
+        // A .env that is a link would send the secret, and the rewrite of the file, wherever the link points.
+        if (Files.isSymbolicLink(file)) throw new IllegalArgumentException(file.getFileName() + " is a symbolic link, so a secret is not saved through it.");
         try {
             List<String> lines = new ArrayList<>(Files.isRegularFile(file) ? Files.readAllLines(file) : List.of());
             lines.removeIf(line -> line.strip().startsWith(name + "="));
