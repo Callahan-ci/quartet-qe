@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSION="${1:?Usage: update-plugin-lock.sh <version, such as 0.2.0> [SHA256SUMS file or URL]}"
 case "$VERSION" in [0-9]*.[0-9]*.[0-9]*) ;; *) echo "The version looks like 0.2.0, not $VERSION" >&2; exit 1 ;; esac
-SOURCE="${2:-https://github.com/goughliam1813/quartet-qe/releases/download/v$VERSION/SHA256SUMS}"
+SOURCE="${2:-https://github.com/Callahan-ci/quartet-qe/releases/download/v$VERSION/SHA256SUMS}"
 SUMS="$(mktemp)"; trap 'rm -f "$SUMS"' EXIT
 if [ -f "$SOURCE" ]; then cp "$SOURCE" "$SUMS"; else curl -fsSL "$SOURCE" -o "$SUMS"; fi
 

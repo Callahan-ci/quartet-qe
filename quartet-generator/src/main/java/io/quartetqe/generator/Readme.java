@@ -153,7 +153,7 @@ final class Readme {
 
     private static String quartetUrl(Main main) {
         String url = main.settings.path("quartetRepo").asText("");
-        return url.isBlank() || url.startsWith("__") ? "https://github.com/goughliam1813/quartet-qe" : url;
+        return url.isBlank() || url.startsWith("__") ? "https://github.com/Callahan-ci/quartet-qe" : url;
     }
 
     private static List<String> stories(Main main) throws IOException {

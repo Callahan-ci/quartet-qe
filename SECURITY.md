@@ -50,7 +50,7 @@ Release builds are also tighter:
 - The Gradle download is pinned by checksum, and every library and plugin is checked against `gradle/verification-metadata.xml`:
   a changed or tampered download fails the build. After a dependency change, run `scripts/update-checksums.sh` and review the diff.
 - Each release carries a software bill of materials (`.cdx.json`), a `SHA256SUMS` file and, for a public repository, build provenance
-  that GitHub signs. Check a download with `shasum -a 256 -c SHA256SUMS` and `gh attestation verify <file> --repo goughliam1813/quartet-qe`.
+  that GitHub signs. Check a download with `shasum -a 256 -c SHA256SUMS` and `gh attestation verify <file> --repo Callahan-ci/quartet-qe`.
 - The extension bundles are signed when a signing certificate is configured for the repository (secrets `MCPB_CERT_PEM` and
   `MCPB_KEY_PEM`). **Until one is, they are published unsigned**, and the release log says so. Quartet never signs with a self-made
   certificate, because that would look like assurance without being any.

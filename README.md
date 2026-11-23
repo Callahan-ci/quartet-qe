@@ -49,25 +49,25 @@ Pick one. Each needs Java 21 or newer.
 **In Claude Code**, with nothing to clone:
 
 ```text
-/plugin marketplace add goughliam1813/quartet-qe
+/plugin marketplace add Callahan-ci/quartet-qe
 /plugin install quartet-qe@quartet-qe
 ```
 
 It asks for your tests folder and, if you want them, your Jira, Azure DevOps, GitHub, GitLab and Jenkins details. The first start fetches the matching release once and checks its SHA-256 before unpacking anything. See [`plugin/README.md`](plugin/README.md) for exactly what it runs, sends and fetches.
 
-**In the Claude desktop app**, download the `.mcpb` file for your computer from the [latest release](https://github.com/goughliam1813/quartet-qe/releases/latest) (`mac-arm64` for Apple silicon Macs, `mac` for Intel Macs, `linux` or `linux-arm64`), double-click it and fill in the settings. The app warns that an extension has access to your computer. That is true of every local extension, and of Quartet: it runs on your machine and drives your browsers, devices and tests. [`SECURITY.md`](SECURITY.md) says what it can and cannot reach.
+**In the Claude desktop app**, download the `.mcpb` file for your computer from the [latest release](https://github.com/Callahan-ci/quartet-qe/releases/latest) (`mac-arm64` for Apple silicon Macs, `mac` for Intel Macs, `linux` or `linux-arm64`), double-click it and fill in the settings. The app warns that an extension has access to your computer. That is true of every local extension, and of Quartet: it runs on your machine and drives your browsers, devices and tests. [`SECURITY.md`](SECURITY.md) says what it can and cannot reach.
 
 **From source:**
 
 ```bash
-git clone https://github.com/goughliam1813/quartet-qe.git
+git clone https://github.com/Callahan-ci/quartet-qe.git
 cd quartet-qe
 ./get-started.sh
 ```
 
 `get-started.sh` checks your machine, builds the tool, and offers a menu: watch the demo, connect your chat tool, or set up tests for your own product. It remembers that you have been before.
 
-Each release lists a `SHA256SUMS` file and a software bill of materials. Check a download with `shasum -a 256 -c SHA256SUMS`, and with `gh attestation verify <file> --repo goughliam1813/quartet-qe` for the build provenance.
+Each release lists a `SHA256SUMS` file and a software bill of materials. Check a download with `shasum -a 256 -c SHA256SUMS`, and with `gh attestation verify <file> --repo Callahan-ci/quartet-qe` for the build provenance.
 
 Or run it on a story directly:
 

@@ -51,7 +51,7 @@ fi
 command -v curl >/dev/null 2>&1 || fail "curl is needed to fetch Quartet QE and was not found."
 command -v unzip >/dev/null 2>&1 || fail "unzip is needed to unpack Quartet QE and was not found."
 
-BASE="${QUARTET_RELEASE_BASE_URL:-https://github.com/goughliam1813/quartet-qe/releases/download/v$VERSION}"
+BASE="${QUARTET_RELEASE_BASE_URL:-https://github.com/Callahan-ci/quartet-qe/releases/download/v$VERSION}"
 FILE="quartet-qe-$VERSION-$PLATFORM.mcpb"
 mkdir -p "$HOME/.quartet/releases"
 WORK="$(mktemp -d "$HOME/.quartet/.fetch.XXXXXX")"

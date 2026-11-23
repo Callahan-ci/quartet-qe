@@ -4,16 +4,16 @@
   "version": "0.1.0",
   "description": "Write end-to-end tests from a user story (API, Kafka, databases, web, phone browsers, Android), have the AI check its own work, replay them with no AI, and review everything on one page before it merges.",
   "author": {
-    "name": "Liam Gough",
-    "url": "https://github.com/goughliam1813"
+    "name": "Callahan CI",
+    "url": "https://github.com/Callahan-ci"
   },
-  "homepage": "https://github.com/goughliam1813/quartet-qe",
-  "repository": "https://github.com/goughliam1813/quartet-qe",
+  "homepage": "https://github.com/Callahan-ci/quartet-qe",
+  "repository": "https://github.com/Callahan-ci/quartet-qe",
   "license": "MIT",
   "icon": "./.claude-plugin/icon.png",
-  "documentationUrl": "https://github.com/goughliam1813/quartet-qe/blob/main/GETTING-STARTED.md",
-  "supportUrl": "https://github.com/goughliam1813/quartet-qe/issues",
-  "privacyPolicyUrl": "https://github.com/goughliam1813/quartet-qe/blob/main/PRIVACY.md",
+  "documentationUrl": "https://github.com/Callahan-ci/quartet-qe/blob/main/GETTING-STARTED.md",
+  "supportUrl": "https://github.com/Callahan-ci/quartet-qe/issues",
+  "privacyPolicyUrl": "https://github.com/Callahan-ci/quartet-qe/blob/main/PRIVACY.md",
   "keywords": [
     "testing",
     "qa",

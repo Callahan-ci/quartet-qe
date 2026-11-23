@@ -1,6 +1,6 @@
 {
   "name": "quartet-qe",
-  "owner": { "name": "Liam Gough", "url": "https://github.com/goughliam1813" },
+  "owner": { "name": "Callahan CI", "url": "https://github.com/Callahan-ci" },
   "metadata": { "description": "Quartet QE: write end-to-end tests from a user story and prove they work." },
   "plugins": [
     {
