@@ -8,14 +8,39 @@
 
 # Quartet QE
 
-**An AI test agent that writes end-to-end tests from a user story, then proves its own work.**
+**An AI test framework for the whole stack, native apps included. It writes end-to-end tests from a user story, then proves its own work.**
 
-Give it context about your systems and a story. It writes the tests for your APIs, Kafka topics, databases, web apps, mobile browsers and native apps. It checks its own code, runs it, and hands you one page to review. After the first recording the tests replay with no AI, so your pipeline is fast, free and deterministic.
+Give it context about your systems and a story. It writes the tests for your APIs, Kafka topics, databases, web apps, phone browsers and **native mobile apps**, in one framework and one run. It checks its own code, runs it, and hands you one page to review. After the first recording the tests replay with no AI, so your pipeline is fast, free and deterministic.
+
+It is a framework, not a recorder or a script library. The AI writes the tests and works out how to drive each system the first time; plain Java assertions decide pass or fail; and a person approves before anything merges.
 
 1. **Give it context.** What your systems are and how your team builds.
 2. **Give it a story.** From a file, Jira, Azure DevOps, GitHub or GitLab.
 3. **It writes the tests.** For APIs, Kafka, databases, web, mobile web and native apps.
 4. **You review.** One page, with anything that needs your attention at the top.
+
+## Test native apps in plain English
+
+Quartet QE tests a native mobile app the same way it tests everything else: you say what a user does, and it works out how. There are no selectors, no XPath, no element IDs and no Appium server to run.
+
+```java
+ActResult shown = agent.act("Open the calculator, enter 7 + 8, press equals and read the result shown",
+        why("A user adding two numbers must get the right answer"),
+        on("calculator-app"),
+        returns("text"));
+assertThat(shown.get("text")).isEqualTo("15");
+```
+
+That test is from a real run against [Fossify Calculator](https://github.com/FossifyOrg/Calculator), an open-source Android app, on an emulator. The story had six acceptance criteria (sums, the square root key, deleting a digit, dividing by zero, the History screen) and the AI wrote six tests for them. They passed, the AI was not needed again once they were recorded, and the review page said ready to merge.
+
+- **It reads the screen the way a screen reader does.** On Android it asks the device, through `adb`, for the app's accessibility tree, and refers to controls by role and name, such as "button 7" or "heading History". Nothing is installed on the device. The phone or emulator only needs to be reachable by `adb`.
+- **The AI explores once, then steps down.** The first run, the AI taps through the app and every step is recorded. From then on the test replays the recorded steps with no AI, quickly, and gives the same answer each time.
+- **Each test starts the app cold,** from its launcher, so tests never depend on one another.
+- **A redesign does not break the test.** If an update renames a button, the step that no longer works goes back to the AI and is recorded again. It can change how a step is done. It can never change what the test must prove.
+- **The same story can cover the app and what is behind it.** One act can tap through the app and the next can check the order in PostgreSQL or the event on Kafka, in the same test, with the same review page.
+- **The same test can run on every screen** with `@OnEverySurface`: desktop browsers, phone browsers and native apps.
+
+You need the Android SDK platform tools (`adb`), and an emulator or a phone with the app installed. iOS support is newer: it uses a small XCTest runner in [`native/ios`](native/ios/README.md) and needs Xcode.
 
 ## Install
 
@@ -59,6 +84,7 @@ Review   reports/SHOP-142/review.html (ready to merge)
 
 ## Contents
 
+- [Test native apps in plain English](#test-native-apps-in-plain-english)
 - [Install](#install): as a Claude Code plugin, as a Claude desktop extension, or from source
 - [Get started](GETTING-STARTED.md): run `./get-started.sh`, or follow the step-by-step guide (about 15 minutes)
 - [What a test looks like](#what-a-test-looks-like)
@@ -134,10 +160,10 @@ If a step no longer works, for example a renamed button, it is handed back to th
 | **Kafka** | Produces and consumes events and validates them against JSON Schema. |
 | **Databases** | PostgreSQL and MongoDB, read-only unless a target explicitly allows writes. |
 | **Telemetry** | Reads metrics and checks them against your service objectives. |
-| **Web** | Chromium and WebKit through Playwright, using each browser's accessibility tree. |
+| **Web** | Chromium, Firefox and WebKit through Playwright, using each browser's accessibility tree. |
 | **Phone browsers** | Playwright device emulation. |
-| **Android** | Apps and on-device browsers through `adb`, with nothing installed on the device and no Appium. |
-| **iOS** | A small XCTest runner in `native/ios` (needs Xcode). |
+| **Native Android apps** | The app on an emulator or a phone, through `adb` and its accessibility tree, with nothing installed on the device and no Appium. Also on-device browsers. |
+| **Native iOS apps** | A small XCTest runner in `native/ios` (needs Xcode). |
 
 ### Screens
 
