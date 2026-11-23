@@ -9,7 +9,7 @@ postgres = "42.7.8"
 jsonschema = "1.5.6"
 springKafka = "4.0.0"
 embeddedPostgres = "2.1.1"
-flapdoodle = "4.21.0"
+flapdoodle = "5.0.0"
 slf4j = "2.0.17"
 
 [libraries]
