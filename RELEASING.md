@@ -26,7 +26,7 @@ Local servers are submitted as a plugin, not as an extension. You need a paid Cl
 
 1. Check locally: `claude plugin validate ./plugin` and `claude plugin validate .`.
 2. Open https://claude.ai/directory/manage, choose **Submit new**, then **Plugin bundle**.
-3. Repository: `goughliam1813/quartet-qe`. Plugin path: `plugin`. Leave the branch empty to follow `main`.
+3. Repository: `Callahan-ci/quartet-qe`. Plugin path: `plugin`. Leave the branch empty to follow `main`.
 4. Select **Validate**, fix anything marked **Blocks**, and validate again.
 5. Answer the data handling questions from `plugin/README.md` and `PRIVACY.md`, tick the acknowledgements, and submit.
 
@@ -37,6 +37,6 @@ Expect Anthropic's reviewer to read the first version: the launcher downloads a 
 Anyone can use the plugin today from this repository as a marketplace:
 
 ```
-/plugin marketplace add goughliam1813/quartet-qe
+/plugin marketplace add Callahan-ci/quartet-qe
 /plugin install quartet-qe@quartet-qe
 ```

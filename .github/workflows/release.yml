@@ -85,7 +85,7 @@ jobs:
           (cd release && sha256sum * > SHA256SUMS && cat SHA256SUMS)
       - name: Record where these files were built (provenance)
         # Public repositories only: GitHub offers this for private ones on a paid plan. Anyone can then check a download with
-        #   gh attestation verify <file> --repo goughliam1813/quartet-qe
+        #   gh attestation verify <file> --repo Callahan-ci/quartet-qe
         if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:

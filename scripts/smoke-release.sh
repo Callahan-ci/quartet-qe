@@ -31,7 +31,7 @@ echo "$OUT" | grep -q 'needs_decisions' || fail "a first start in an empty folde
 REPO="$WORK/home/quartet-tests/smoke-shop-tests"
 [ -f "$REPO/quartet.yaml" ] || fail "the tests repo was not created at $REPO"
 grep -q "^quartetVersion: v$VERSION$" "$REPO/quartet.yaml" || fail "the new repo is not pinned to v$VERSION: $(grep quartetVersion "$REPO/quartet.yaml")"
-grep -q 'goughliam1813/quartet-qe' "$REPO/quartet.yaml" || fail "the new repo does not name where to fetch Quartet from"
+grep -q 'Callahan-ci/quartet-qe' "$REPO/quartet.yaml" || fail "the new repo does not name where to fetch Quartet from"
 [ -x "$REPO/gradlew" ] && [ -f "$REPO/gradle/wrapper/gradle-wrapper.jar" ] || fail "the new repo has no Gradle wrapper"
 [ -f "$REPO/README.md" ] && [ -d "$REPO/.git" ] || fail "the new repo has no README or git repository"
 [ "$(cd "$HOME/.quartet/current" && pwd -P)" = "$(cd "$PKG" && pwd -P)" ] || fail "the new repo cannot find this install (~/.quartet/current)"

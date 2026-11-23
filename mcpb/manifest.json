@@ -6,16 +6,16 @@
   "description": "Turns a user story into end-to-end tests (API, Kafka, databases, web, phones, Android) that replay with no AI, with a human approving every merge.",
   "long_description": "Quartet QE lets the AI you are chatting with write end-to-end tests from a user story, check its own work, record each step once and replay it with no AI. It tests REST APIs, Kafka, Postgres, MongoDB, web pages in three browser engines, phone browsers and native Android apps, then gives you one page to review before anything merges. It runs on your computer. Add your tracker, git host and Jenkins here once and it connects to them for you; secrets are stored by the app and never pass through the chat. Needs Java 21 installed.",
   "author": {
-    "name": "Liam Gough",
-    "url": "https://github.com/goughliam1813"
+    "name": "Callahan CI",
+    "url": "https://github.com/Callahan-ci"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/goughliam1813/quartet-qe"
+    "url": "https://github.com/Callahan-ci/quartet-qe"
   },
-  "homepage": "https://github.com/goughliam1813/quartet-qe",
-  "documentation": "https://github.com/goughliam1813/quartet-qe/blob/main/GETTING-STARTED.md",
-  "support": "https://github.com/goughliam1813/quartet-qe/issues",
+  "homepage": "https://github.com/Callahan-ci/quartet-qe",
+  "documentation": "https://github.com/Callahan-ci/quartet-qe/blob/main/GETTING-STARTED.md",
+  "support": "https://github.com/Callahan-ci/quartet-qe/issues",
   "license": "MIT",
   "keywords": [
     "testing",
@@ -136,7 +136,7 @@
     "platforms": ["darwin", "linux"]
   },
   "privacy_policies": [
-    "https://github.com/goughliam1813/quartet-qe/blob/main/PRIVACY.md"
+    "https://github.com/Callahan-ci/quartet-qe/blob/main/PRIVACY.md"
   ],
   "user_config": {
     "tests_repo": {

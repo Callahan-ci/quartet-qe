@@ -9,11 +9,11 @@ It tests REST APIs, Kafka, Postgres and MongoDB, web pages in Chromium, Firefox 
 In Claude Code:
 
 ```
-/plugin marketplace add goughliam1813/quartet-qe
+/plugin marketplace add Callahan-ci/quartet-qe
 /plugin install quartet-qe@quartet-qe
 ```
 
-Or, on Claude Code 2.1.275 or later: `/plugin install quartet-qe --marketplace goughliam1813/quartet-qe`.
+Or, on Claude Code 2.1.275 or later: `/plugin install quartet-qe --marketplace Callahan-ci/quartet-qe`.
 
 ## Use it
 
@@ -28,10 +28,10 @@ The first time, it asks what your product is called and where the tests should l
 ## What this plugin runs, sends and fetches
 
 - **It runs a local program.** Quartet QE is a Java program (Java 21 or newer is needed). The plugin's `scripts/start-quartet.sh` starts it. If you already have Quartet QE installed, set `QUARTET_HOME` to that folder and nothing is downloaded.
-- **It fetches one file, once.** Otherwise the first start downloads this version's release from `https://github.com/goughliam1813/quartet-qe/releases`, checks its SHA-256 against the value committed in this plugin (a mismatch stops before anything is unpacked), and unpacks it into `~/.quartet/releases/<version>`. The first web test also lets Playwright download its browsers.
+- **It fetches one file, once.** Otherwise the first start downloads this version's release from `https://github.com/Callahan-ci/quartet-qe/releases`, checks its SHA-256 against the value committed in this plugin (a mismatch stops before anything is unpacked), and unpacks it into `~/.quartet/releases/<version>`. The first web test also lets Playwright download its browsers.
 - **It sends nothing to its author.** There is no account, no server of its own and no usage tracking. Test traffic goes only to the systems you list in your tests repo's environment file. Jira, Azure DevOps, GitHub, GitLab and Jenkins are contacted only if you give their addresses and tokens in the settings.
 - **Test runs get a limited environment.** The tests are AI-written code, so they see the variables the environment file names and the basics, not your other secrets.
-- **It writes to your tests repo and `~/.quartet`.** Recordings, reports (with screenshots) and settings are saved in the tests repo on your disk. See the [privacy page](https://github.com/goughliam1813/quartet-qe/blob/main/PRIVACY.md) and the [security notes](https://github.com/goughliam1813/quartet-qe/blob/main/SECURITY.md).
+- **It writes to your tests repo and `~/.quartet`.** Recordings, reports (with screenshots) and settings are saved in the tests repo on your disk. See the [privacy page](https://github.com/Callahan-ci/quartet-qe/blob/main/PRIVACY.md) and the [security notes](https://github.com/Callahan-ci/quartet-qe/blob/main/SECURITY.md).
 
 ## Where it works
 
@@ -39,4 +39,4 @@ Claude Code, and Cowork sessions that run on your computer. Chat on the web igno
 
 ## More
 
-Source, guide, the demo and the limits are at [github.com/goughliam1813/quartet-qe](https://github.com/goughliam1813/quartet-qe). Quartet QE is MIT licensed.
+Source, guide, the demo and the limits are at [github.com/Callahan-ci/quartet-qe](https://github.com/Callahan-ci/quartet-qe). Quartet QE is MIT licensed.

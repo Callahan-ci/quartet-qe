@@ -20,7 +20,7 @@ No Docker is needed. The demo starts its own Kafka, PostgreSQL and MongoDB.
 ## 1. Run the demo
 
 ```bash
-git clone https://github.com/goughliam1813/quartet-qe.git
+git clone https://github.com/Callahan-ci/quartet-qe.git
 cd quartet-qe
 ./demo.sh
 ```
@@ -340,7 +340,7 @@ Run `./quartet-qe doctor` any time to check your setup.
 In Claude Code, add this repository as a marketplace and install the plugin. You do not need to clone anything:
 
 ```
-/plugin marketplace add goughliam1813/quartet-qe
+/plugin marketplace add Callahan-ci/quartet-qe
 /plugin install quartet-qe@quartet-qe
 ```
 

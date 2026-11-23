@@ -40,7 +40,7 @@ tasks.jar {
 // Tells a release install where it came from, so the tests repos it creates pin CI to this exact release.
 val releaseProperties = tasks.register<WriteProperties>("releaseProperties") {
     destinationFile.set(layout.buildDirectory.file("generated/release/release.properties"))
-    property("repoUrl", "https://github.com/goughliam1813/quartet-qe")
+    property("repoUrl", "https://github.com/Callahan-ci/quartet-qe")
     property("version", project.version.toString())
 }
 

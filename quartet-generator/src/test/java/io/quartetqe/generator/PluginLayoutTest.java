@@ -118,7 +118,7 @@ class PluginLayoutTest {
         assertThat(script.lastIndexOf("rm -rf \"$WORK\"")).isLessThan(script.lastIndexOf("exec \"$ROOT/bin/quartet-qe\""));
         // Nothing is piped into a shell, and it never evaluates text it fetched.
         assertThat(script).doesNotContain("| sh").doesNotContain("| bash").doesNotContain("eval ").doesNotContain("curl -s | ");
-        assertThat(script).contains("https://github.com/goughliam1813/quartet-qe/releases/download/");
+        assertThat(script).contains("https://github.com/Callahan-ci/quartet-qe/releases/download/");
         // The version in the script is the plugin's version, and every platform has a pin line.
         assertThat(script).contains("VERSION=\"" + manifest().path("version").asText() + "\"");
         for (String platform : List.of("mac_arm64", "mac", "linux", "linux_arm64")) assertThat(script).contains("SHA256_" + platform + "=\"");
