@@ -1,9 +1,9 @@
 <p align="center">
   <a href="assets/quartet-qe-overview.mp4">
-    <img src="assets/quartet-qe-overview.jpg" alt="Quartet QE overview video: click to play" width="720">
+    <img src="assets/quartet-qe-overview.gif" alt="Quartet QE overview: a user story becomes end-to-end tests, replayed with no AI" width="720">
   </a>
   <br>
-  <sub>49-second overview. Click to play. Music: Sascha Ende, ende.app (CC BY 4.0).</sub>
+  <sub>49-second overview, looping. <a href="assets/quartet-qe-overview.mp4">Watch it with sound</a>. Music: Sascha Ende, ende.app (CC BY 4.0).</sub>
 </p>
 
 # Quartet QE
