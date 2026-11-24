@@ -1,0 +1,45 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Callahan-ci/quartet-qe",
+  "title": "Quartet QE",
+  "description": "AI test framework: turn a user story into end-to-end tests for APIs, web and Android.",
+  "repository": {
+    "url": "https://github.com/Callahan-ci/quartet-qe",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Callahan-ci/quartet-qe/releases/download/v0.1.0/quartet-qe-0.1.0-mac-arm64.mcpb",
+      "fileSha256": "58982e6b21802cb3765718f8a64cd0d2e6c7ccdd4e826c6d767694066e4818ea",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Callahan-ci/quartet-qe/releases/download/v0.1.0/quartet-qe-0.1.0-mac.mcpb",
+      "fileSha256": "9cd54187da1d5d92b331b917003d0817a830dbacd99f61b61419d38919532e7d",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Callahan-ci/quartet-qe/releases/download/v0.1.0/quartet-qe-0.1.0-linux.mcpb",
+      "fileSha256": "f4944fd623be3f7fbf82edf931f4c84d06e01fa786c95f99b13327e9c5ca340c",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/Callahan-ci/quartet-qe/releases/download/v0.1.0/quartet-qe-0.1.0-linux-arm64.mcpb",
+      "fileSha256": "8132a37cd26e39d5c627dc7db2f41533e1cecc1304f0b0bdff25469f77361a53",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
