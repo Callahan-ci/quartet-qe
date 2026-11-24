@@ -8,6 +8,10 @@
 
 # Quartet QE
 
+<a href="https://glama.ai/mcp/servers/Callahan-ci/quartet-qe">
+  <img width="380" alt="Quartet QE MCP server on Glama" src="https://glama.ai/mcp/servers/Callahan-ci/quartet-qe/badges/card.svg" />
+</a>
+
 **An AI test framework for the whole stack, native apps included. It writes end-to-end tests from a user story, then proves its own work.**
 
 Give it context about your systems and a story. It writes the tests for your APIs, Kafka topics, databases, web apps, phone browsers and **native mobile apps**, in one framework and one run. It checks its own code, runs it, and hands you one page to review. After the first recording the tests replay with no AI, so your pipeline is fast, free and deterministic.
