@@ -17,11 +17,20 @@ final class ApiDriver implements Driver {
 
     private final String baseUrl;
     private final JsonNode defaultHeaders;
+    private final String target;
+    private final TransactionTrace trace;
     private final HttpJson http = new HttpJson();
 
     ApiDriver(JsonNode config) {
+        this(config, null, null);
+    }
+
+    /** With a trace, every request carries the test's traceparent and is noted as a hop on this target. */
+    ApiDriver(JsonNode config, String target, TransactionTrace trace) {
         this.baseUrl = config.path("baseUrl").asText().replaceAll("/$", "");
         this.defaultHeaders = config.path("headers");
+        this.target = target;
+        this.trace = trace;
     }
 
     @Override
@@ -63,6 +72,9 @@ final class ApiDriver implements Driver {
         args.path("headers").fields().forEachRemaining(f -> headers.put(f.getKey(), f.getValue().asText()));
         String body = args.hasNonNull("body") ? Json.str(args.get("body")) : null;
         if (body != null) headers.putIfAbsent("content-type", "application/json");
+        if (trace != null && headers.keySet().stream().noneMatch(name -> name.equalsIgnoreCase("traceparent"))) {
+            headers.put("traceparent", trace.traceparent());
+        }
 
         long start = System.nanoTime();
         HttpJson.Resp response = http.send(args.path("method").asText(), baseUrl + path, headers, body, Duration.ofSeconds(30));
@@ -70,6 +82,7 @@ final class ApiDriver implements Driver {
         result.put("status", response.status());
         result.put("durationMs", (System.nanoTime() - start) / 1_000_000);
         result.set("body", parseBody(response.body()));
+        if (trace != null) trace.sent(target, "http", args.path("method").asText() + " " + path.replaceFirst("\\?.*$", "") + " → " + response.status());
         return Driver.check(result, "status:" + response.status());
     }
 

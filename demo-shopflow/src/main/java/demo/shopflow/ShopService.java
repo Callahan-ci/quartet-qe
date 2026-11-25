@@ -135,10 +135,21 @@ final class ShopService {
         }
         if (!"no-event".equals(fault)) {
             ObjectNode event = Json.obj().put("orderId", orderId).put("customerId", customer).put("total", total).put("createdAt", Instant.now().toString());
-            producer.send(new ProducerRecord<>("shop.orders.created", orderId, event.toString())).get();
+            ProducerRecord<String, String> record = new ProducerRecord<>("shop.orders.created", orderId, event.toString());
+            // Like any service with OpenTelemetry, pass the caller's trace on to the event it publishes.
+            String child = "drop-trace".equals(fault) ? null : childOf(exchange.getRequestHeaders().getFirst("traceparent"));
+            if (child != null) record.headers().add("traceparent", child.getBytes(StandardCharsets.UTF_8));
+            producer.send(record).get();
         }
         if (!"no-metric".equals(fault)) created.incrementAndGet();
         send(exchange, 201, Json.obj().put("orderId", orderId).put("status", status).put("total", total));
+    }
+
+    /** A W3C traceparent for a new span in the caller's trace, or null when the caller sent none or a malformed one. */
+    static String childOf(String traceparent) {
+        if (traceparent == null || !traceparent.trim().toLowerCase().matches("00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}")) return null;
+        String[] parts = traceparent.trim().toLowerCase().split("-");
+        return "00-" + parts[1] + "-" + String.format("%016x", ThreadLocalRandom.current().nextLong(1, Long.MAX_VALUE)) + "-" + parts[3];
     }
 
     private void readOrder(HttpExchange exchange, String orderId) throws Exception {

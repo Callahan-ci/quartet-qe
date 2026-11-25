@@ -56,6 +56,9 @@ class CheckoutReservesStockTest {
                 returns("found", "schemaValid"));
         assertThat(event.getBool("found")).isTrue();
         assertThat(event.getBool("schemaValid")).isTrue();
+        assertThat(agent.trace().reached("order-events"))
+                .as("The order event carries this test's trace, so the service passed the transaction on")
+                .isTrue();
     }
 
     @Test

@@ -45,6 +45,11 @@ final class ScreenDriver implements Driver {
         this.surface = surface;
     }
 
+    /** Page requests to the app carry the test's trace. Native apps make their own requests, so they are left alone. */
+    void traceWith(java.util.function.Supplier<String> header) {
+        if (surface instanceof BrowserSurface browser) browser.traceWith(header);
+    }
+
     /** Escalating pause between looks at the screen while it settles. */
     private static final long[] RETRY_DELAYS_MS = {100, 300, 600, 1_000, 3_000};
 

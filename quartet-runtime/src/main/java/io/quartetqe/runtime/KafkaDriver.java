@@ -9,6 +9,7 @@ import com.networknt.schema.ValidationMessage;
 import io.quartetqe.core.Json;
 import io.quartetqe.core.Tool;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -27,11 +28,26 @@ import org.apache.kafka.common.serialization.StringSerializer;
 final class KafkaDriver implements Driver {
     private final JsonNode config;
     private final Path contextRoot;
+    private final String target;
+    private final TransactionTrace trace;
     private KafkaProducer<String, String> producer;
 
     KafkaDriver(JsonNode config, Path contextRoot) {
+        this(config, contextRoot, null, null);
+    }
+
+    /** With a trace, published events carry the test's traceparent, and found events say which trace they carried. */
+    KafkaDriver(JsonNode config, Path contextRoot, String target, TransactionTrace trace) {
         this.config = config;
         this.contextRoot = contextRoot;
+        this.target = target;
+        this.trace = trace;
+    }
+
+    private ProducerRecord<String, String> record(String topic, String key, String value) {
+        ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, value);
+        if (trace != null) record.headers().add("traceparent", trace.traceparent().getBytes(StandardCharsets.UTF_8));
+        return record;
     }
 
     @Override
@@ -83,9 +99,10 @@ final class KafkaDriver implements Driver {
         for (int i = 0; i < count; i++) {
             JsonNode event = KafkaGenerator.generate(schema, args.path("overrides"), seed + i);
             String key = args.hasNonNull("keyField") ? Json.at(event, args.path("keyField").asText()).asText() : null;
-            producer().send(new ProducerRecord<>(topic, key, event.toString())).get();
+            producer().send(record(topic, key, event.toString())).get();
             events.add(event);
         }
+        if (trace != null) trace.sent(target, "kafka", "published " + count + " to " + topic);
         ObjectNode result = Json.obj();
         result.put("published", count);
         result.set("events", events);
@@ -93,7 +110,8 @@ final class KafkaDriver implements Driver {
     }
 
     private JsonNode produce(JsonNode args) throws Exception {
-        producer().send(new ProducerRecord<>(args.path("topic").asText(), args.path("key").asText(null), args.path("value").toString())).get();
+        producer().send(record(args.path("topic").asText(), args.path("key").asText(null), args.path("value").toString())).get();
+        if (trace != null) trace.sent(target, "kafka", "published 1 to " + args.path("topic").asText());
         return Driver.check(Json.obj().put("published", 1), "published:1");
     }
 
@@ -113,6 +131,7 @@ final class KafkaDriver implements Driver {
                 }
             }
         }
+        if (trace != null) trace.seen(target, "kafka", "no matching event on " + topic, null);
         return Driver.check(Json.obj().put("found", false), "found:false");
     }
 
@@ -130,6 +149,10 @@ final class KafkaDriver implements Driver {
         result.put("found", true);
         result.put("key", record.key());
         result.put("partition", record.partition());
+        var header = record.headers().lastHeader("traceparent");
+        String carried = header == null ? null : TransactionTrace.traceIdOf(new String(header.value(), StandardCharsets.UTF_8));
+        if (carried != null) result.put("traceId", carried);
+        if (trace != null) trace.seen(target, "kafka", "event on " + topic, carried);
         result.set("value", value);
         JsonNode schema = schema(topic);
         if (schema != null) {
