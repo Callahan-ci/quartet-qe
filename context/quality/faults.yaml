@@ -8,6 +8,7 @@ faults:
   - {id: wrong-status, description: "Order is saved with the wrong status", expectedToFail: ["AC1"]}
   - {id: no-persist, description: "Order is never written to the database", expectedToFail: ["AC1"]}
   - {id: no-event, description: "Order event is not published", expectedToFail: ["AC2"]}
+  - {id: drop-trace, description: "Order event is published without the caller's trace", expectedToFail: ["AC2"]}
   - {id: no-stock-decrement, description: "Stock is not reserved", expectedToFail: ["AC3"]}
   - {id: allow-oversell, description: "Orders beyond stock are accepted", expectedToFail: ["AC4"]}
   - {id: ignore-payment, description: "Payment settlement is ignored", expectedToFail: ["AC5"]}

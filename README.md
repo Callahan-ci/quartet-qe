@@ -46,6 +46,27 @@ That test is from a real run against [Fossify Calculator](https://github.com/Fos
 
 You need the Android SDK platform tools (`adb`), and an emulator or a phone with the app installed. iOS support is newer: it uses a small XCTest runner in [`native/ios`](native/ios/README.md) and needs Xcode.
 
+## Follow one transaction through every system
+
+A test that places an order through the API, finds the row in PostgreSQL and finds the event on Kafka is one transaction. Quartet QE follows it, and the run report draws it:
+
+```text
+Transaction  orderId ORD-4821937055   3 systems · trace passed on by order-events   trace 4bf92f3577b34da6a3ce929d0e0e4736
+orders-api  POST /api/orders → 201  [trace sent]  →  orders-db  pg_query → rows:some  [linked by value]  →  order-events  event on shop.orders.created  [same trace]
+```
+
+- **One trace per test.** Every API request, every page request to the app under test and every Kafka event Quartet sends carries a W3C `traceparent` header with the test's trace id. Quartet adds it, not the AI, so recordings do not change and replays carry it too. A header the test sets itself is left alone, and other hosts never receive it.
+- **The service proves the hop.** A service that propagates trace context (OpenTelemetry does by default) passes the trace on to what it publishes. When Quartet finds that Kafka event, it reads the trace the event carried: the same trace means the service itself linked the order to the event. A test can assert it:
+
+  ```java
+  assertThat(agent.trace().reached("order-events")).isTrue();
+  ```
+
+- **Databases are linked by value.** A row carries no trace, so the report links it by the value the test passed along with `with("orderId", ...)`.
+- **Search for it.** The trace id is on the report, so you can open the same transaction in Jaeger, Tempo or Grafana. No tracing backend is needed for any of the above.
+
+The demo shop passes the trace on, and `--prove` plants a version that drops it, so you can see the assertion catch it.
+
 ## Install
 
 Pick one. Each needs Java 21 or newer.
@@ -89,6 +110,7 @@ Review   reports/SHOP-142/review.html (ready to merge)
 ## Contents
 
 - [Test native apps in plain English](#test-native-apps-in-plain-english)
+- [Follow one transaction through every system](#follow-one-transaction-through-every-system)
 - [Install](#install): as a Claude Code plugin, as a Claude desktop extension, or from source
 - [Get started](GETTING-STARTED.md): run `./get-started.sh`, or follow the step-by-step guide (about 15 minutes)
 - [What a test looks like](#what-a-test-looks-like)
@@ -204,6 +226,7 @@ Every check below runs inside `run`. You only hear about one when it finds somet
 - **Only verified steps are recorded**, and they replay with no AI.
 - **Repairs cannot weaken a test.** No deleted assertions, no disabled tests, no changed expectations without evidence. A product bug is reported, not patched around.
 - **Proof it catches bugs.** With `--prove`, bugs are planted in a test build and the tests must catch them.
+- **Proof the systems are connected.** Every request and event carries the test's W3C trace, and a test can assert that a service passed it on, not just that something arrived.
 - **Guard rails.** Only allow-listed hosts. Databases are read-only by default, enforced by a read-only transaction and a statement check, not just a setting. Generated tests cannot run programs, read files or environment variables, or open connections of their own. Downloads cannot reach private networks. Secrets are removed from prompts, logs and reports. See [SECURITY.md](SECURITY.md).
 
 ### Engineering principles
@@ -355,7 +378,7 @@ In that repo:
 
 ## Run report
 
-One page for the last run, built from the build's own JUnit XML and an audit of every `agent.act`: what the tests decided, how long each took, what the AI did, and what it cost. Every number comes from the build, never from a model.
+One page for the last run, built from the build's own JUnit XML and an audit of every `agent.act`: what the tests decided, how long each took, what the AI did, and what it cost. A test that threads a value through two or more systems also gets its [transaction path](#follow-one-transaction-through-every-system). Every number comes from the build, never from a model.
 
 ```bash
 ./quartet-qe report --results e2e-tests/build/test-results/test

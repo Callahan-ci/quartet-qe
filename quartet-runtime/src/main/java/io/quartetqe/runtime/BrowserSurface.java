@@ -6,12 +6,15 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.Route;
 import com.microsoft.playwright.options.AriaRole;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,6 +35,7 @@ final class BrowserSurface implements Surface {
     private final Preset preset;
     private final boolean headless;
     private final Predicate<String> allowedHost;
+    private volatile Supplier<String> traceparent;
     private Playwright playwright;
     private Page page;
 
@@ -106,9 +110,37 @@ final class BrowserSurface implements Surface {
             String url = route.request().url();
             boolean leaving = route.request().isNavigationRequest() && url.startsWith("http") && !allowedHost.test(URI.create(url).getHost());
             if (leaving) route.abort("blockedbyclient");
-            else route.resume();
+            else if (traceparent != null && sameApp(url)) {
+                // Requests to the app under test carry the test's trace, so a traced service can link what it does next.
+                Map<String, String> headers = new HashMap<>(route.request().headers());
+                headers.putIfAbsent("traceparent", traceparent.get());
+                route.resume(new Route.ResumeOptions().setHeaders(headers));
+            } else route.resume();
         });
         return page;
+    }
+
+    /** Sends a traceparent header, from this supplier, on every request to the app under test. Other hosts never get it. */
+    void traceWith(Supplier<String> header) {
+        this.traceparent = header;
+    }
+
+    /** True when a URL is on the same scheme, host and port as the app under test. */
+    boolean sameApp(String url) {
+        try {
+            URI target = URI.create(url);
+            URI app = URI.create(baseUrl);
+            return target.getScheme() != null && target.getScheme().equalsIgnoreCase(app.getScheme())
+                    && target.getHost() != null && target.getHost().equalsIgnoreCase(app.getHost())
+                    && port(target) == port(app);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private static int port(URI uri) {
+        if (uri.getPort() != -1) return uri.getPort();
+        return "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
     }
 
     @Override

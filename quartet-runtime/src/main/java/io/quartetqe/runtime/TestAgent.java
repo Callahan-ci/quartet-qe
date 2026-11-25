@@ -69,6 +69,7 @@ public final class TestAgent implements AutoCloseable {
     private final String device;
     private final boolean headless;
     private final Map<String, Driver> drivers = new LinkedHashMap<>();
+    private final TransactionTrace trace = new TransactionTrace();
     private int actCount;
 
     TestAgent(Environment environment, Supplier<Llm.Client> llm, Mode mode, ActRecorder recorder, String testId,
@@ -85,6 +86,14 @@ public final class TestAgent implements AutoCloseable {
 
     String testId() {
         return testId;
+    }
+
+    /**
+     * This test's transaction trace. Every request and event Quartet sends carries it, so a test can prove a
+     * service passed the transaction on, for example {@code assertThat(agent.trace().reached("order-events")).isTrue()}.
+     */
+    public TransactionTrace trace() {
+        return trace;
     }
 
     /** A png per screen the test reached, taken without launching anything new. Empty for tests that never opened a screen. */
@@ -148,7 +157,7 @@ public final class TestAgent implements AutoCloseable {
             ActRecorder.REPLAYED.incrementAndGet();
             ActResult result = new ActResult(recording.path("summary").asText(),
                     Binder.resolve(recording.path("data"), replay.scope()), ActResult.Source.REPLAYED);
-            audit(spec, result.source(), replay.results().size(), 0, 0, null, recording.path("model").asText(), replayTrace(recording, replay.results()));
+            audit(spec, result.source(), replay.results().size(), 0, 0, null, recording.path("model").asText(), replayTrace(recording, replay.results()), result.data());
             return result;
         }
         if (mode == Mode.REPLAY) {
@@ -180,7 +189,7 @@ public final class TestAgent implements AutoCloseable {
                 TestAgent::ungroundedEvidence, 10, 8000));
         ActRecorder.TOKENS.addAndGet(outcome.inputTokens() + outcome.outputTokens());
         ActRecorder.MODEL_CALLS.addAndGet(outcome.turns());
-        audit(spec, ActResult.Source.LIVE, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), null, client.model(), liveTrace(outcome.steps()));
+        audit(spec, ActResult.Source.LIVE, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), null, client.model(), liveTrace(outcome.steps()), null);
         if (!outcome.finish().path("holds").asBoolean(false)) {
             throw new AssertionError("Claim does not hold: " + spec.instruction() + "\nEvidence: " + outcome.finish().path("evidence"));
         }
@@ -275,7 +284,7 @@ public final class TestAgent implements AutoCloseable {
         ActRecorder.TOKENS.addAndGet(outcome.inputTokens() + outcome.outputTokens());
         ActRecorder.MODEL_CALLS.addAndGet(outcome.turns());
         if (!outcome.finish().path("ok").asBoolean(false)) {
-            audit(spec, ActResult.Source.LIVE, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), "could-not-attempt", client.model(), liveTrace(outcome.steps()));
+            audit(spec, ActResult.Source.LIVE, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), "could-not-attempt", client.model(), liveTrace(outcome.steps()), null);
             throw new AgentActException("The agent could not perform: " + spec.instruction() + "\nReason: " + outcome.finish().path("summary").asText());
         }
 
@@ -308,7 +317,7 @@ public final class TestAgent implements AutoCloseable {
         recording.set("data", bound.template());
         recorder.stage(file, recording);
 
-        audit(spec, source, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), replay == null ? null : replay.stopReason(), client.model(), liveTrace(outcome.steps()));
+        audit(spec, source, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), replay == null ? null : replay.stopReason(), client.model(), liveTrace(outcome.steps()), data);
         return new ActResult(outcome.finish().path("summary").asText(), data, source);
     }
 
@@ -342,8 +351,9 @@ public final class TestAgent implements AutoCloseable {
         Map<String, Tool> tools = new LinkedHashMap<>();
         for (String target : targets) {
             Driver driver = drivers.computeIfAbsent(target, this::createDriver);
+            String type = environment.target(target).path("type").asText();
             for (Tool tool : driver.tools()) {
-                if (tools.put(tool.name(), tool) != null) {
+                if (tools.put(tool.name(), traced(tool, target, type)) != null) {
                     throw new IllegalArgumentException("Targets " + targets + " have the same type. Use one per act.");
                 }
             }
@@ -351,14 +361,35 @@ public final class TestAgent implements AutoCloseable {
         return tools;
     }
 
+    /**
+     * Notes a hop for tools whose driver does not note its own: a database read or a screen action. API and Kafka
+     * drivers note theirs, with whether the trace went out or came back. Looking at a screen is not a hop.
+     */
+    private Tool traced(Tool tool, String target, String type) {
+        if (PERCEPTION.contains(tool.name())) return tool;
+        return new Tool(tool.def(), args -> {
+            int before = trace.size();
+            JsonNode result = tool.handler().call(args);
+            if (trace.size() == before) {
+                String check = result == null ? "" : result.path("replayCheck").asText("");
+                trace.read(target, type, tool.name() + (check.isEmpty() ? "" : " → " + check));
+            }
+            return result;
+        });
+    }
+
     private Driver createDriver(String target) {
         JsonNode config = environment.target(target);
         return switch (config.path("type").asText()) {
-            case "api" -> new ApiDriver(config);
-            case "kafka" -> new KafkaDriver(config, environment.contextRoot());
+            case "api" -> new ApiDriver(config, target, trace);
+            case "kafka" -> new KafkaDriver(config, environment.contextRoot(), target, trace);
             case "postgres" -> new PostgresDriver(config);
             case "mongo" -> new MongoDriver(config);
-            case "screen" -> new ScreenDriver(environment, target, device, headless);
+            case "screen" -> {
+                ScreenDriver screen = new ScreenDriver(environment, target, device, headless);
+                screen.traceWith(trace::traceparent);
+                yield screen;
+            }
             default -> throw new IllegalArgumentException("Unknown target type for " + target);
         };
     }
@@ -379,7 +410,7 @@ public final class TestAgent implements AutoCloseable {
         }
     }
 
-    private void audit(Spec spec, ActResult.Source source, int steps, int input, int output, String stopReason, String model, ArrayNode trace) {
+    private void audit(Spec spec, ActResult.Source source, int steps, int input, int output, String stopReason, String model, ArrayNode trace, JsonNode data) {
         ObjectNode entry = Json.obj();
         entry.put("test", testId).put("story", story).put("instruction", spec.template()).put("why", spec.why())
                 .put("source", source.name()).put("steps", steps).put("inputTokens", input).put("outputTokens", output)
@@ -387,6 +418,13 @@ public final class TestAgent implements AutoCloseable {
         entry.set("on", Json.MAPPER.valueToTree(spec.on()));
         if (!spec.instruction().equals(spec.template())) entry.put("resolved", spec.instruction());
         entry.set("trace", trace);
+        // The transaction: the values this act was given and returned, and the systems it touched, under one trace id.
+        ObjectNode types = entry.putObject("types");
+        spec.on().forEach(target -> types.put(target, environment.target(target).path("type").asText()));
+        if (!spec.vars().isEmpty()) entry.set("vars", Json.MAPPER.valueToTree(spec.vars()));
+        if (data != null && !data.isMissingNode() && !data.isNull()) entry.set("data", data);
+        entry.put("traceId", this.trace.traceId());
+        entry.set("hops", this.trace.drain());
         ArrayNode shots = entry.putArray("shots");
         actCount++;
         if (!"off".equalsIgnoreCase(System.getenv("QUARTET_SCREENSHOTS"))) {

@@ -138,4 +138,86 @@ class RunReportTest {
         assertThat(markdown).contains("| 3 | 1 | 1 | 1 |").contains("`generated.t.T.ordersReject`: expected: 409 but was: 200");
         assertThat(markdown).contains("| 1 | 1 | 1 |").contains("2 model calls, 1600 tokens").contains("Run time: 3.5 s");
     }
+    private static final String TRACED_XML = """
+        <testsuite name="generated.t" tests="2" failures="0" skipped="0">
+          <testcase name="orderFlows" classname="generated.t.T" time="1.000"/>
+          <testcase name="pageFits" classname="generated.t.T" time="0.100"/>
+        </testsuite>
+        """;
+
+    /** Three acts threading one order through the API, Postgres and Kafka, as TestAgent writes them, and one unrelated act. */
+    private static final String TRACED_AUDIT = """
+        {"test":"T.orderFlows","instruction":"Place an order","why":"w","source":"REPLAYED","steps":1,"types":{"orders-api":"api"},"data":{"orderId":"ORD-1234567","status":"RESERVED"},"traceId":"4bf92f3577b34da6a3ce929d0e0e4736","hops":[{"target":"orders-api","kind":"http","detail":"POST /api/orders → 201","link":"SENT"}]}
+        {"test":"T.orderFlows","instruction":"Find order {{orderId}} in the database","resolved":"Find order ORD-1234567 in the database","why":"w","source":"REPLAYED","steps":1,"types":{"orders-db":"postgres"},"vars":{"orderId":"ORD-1234567"},"data":{"status":"RESERVED"},"traceId":"4bf92f3577b34da6a3ce929d0e0e4736","hops":[{"target":"orders-db","kind":"postgres","detail":"pg_query → rows:some","link":"READ"}]}
+        {"test":"T.orderFlows","instruction":"Find the order event for {{orderId}}","resolved":"Find the order event for ORD-1234567","why":"w","source":"REPLAYED","steps":1,"types":{"order-events":"kafka"},"vars":{"orderId":"ORD-1234567"},"data":{"found":true},"traceId":"4bf92f3577b34da6a3ce929d0e0e4736","hops":[{"target":"order-events","kind":"kafka","detail":"event on shop.orders.created","link":"SAME"}]}
+        {"test":"T.pageFits","instruction":"Open the <home> page","why":"w","source":"REPLAYED","steps":1,"types":{"site":"screen"},"traceId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","hops":[{"target":"site","kind":"screen","detail":"screen_open","link":"READ"}]}
+        """;
+
+    @Test
+    void aTransactionThreadedThroughSystemsIsDrawnInOrderWithHowEachHopIsLinked(@TempDir Path dir) throws Exception {
+        Path results = dir.resolve("test-results");
+        Files.createDirectories(results);
+        Files.writeString(results.resolve("TEST-t.xml"), TRACED_XML);
+        Path audit = dir.resolve("acts.jsonl");
+        Files.writeString(audit, TRACED_AUDIT);
+
+        RunReport.Data data = RunReport.read(results, audit);
+        var paths = RunReport.transactions(data);
+        assertThat(paths).hasSize(1);
+        TransactionPath.Path path = paths.get(0);
+        assertThat(path.name()).isEqualTo("orderId");
+        assertThat(path.value()).isEqualTo("ORD-1234567");
+        assertThat(path.traceId()).isEqualTo("4bf92f3577b34da6a3ce929d0e0e4736");
+        assertThat(path.steps()).extracting(TransactionPath.Step::target).containsExactly("orders-api", "orders-db", "order-events");
+        assertThat(path.steps()).extracting(TransactionPath.Step::link)
+                .containsExactly(TransactionPath.Link.SENT, TransactionPath.Link.READ, TransactionPath.Link.SAME);
+        assertThat(path.carriedBy()).containsExactly("order-events");
+
+        String page = RunReport.html(data);
+        assertThat(page).contains("<span class=\"txn-k\">Transaction</span><b>orderId ORD-1234567</b>")
+                .contains("3 systems · trace passed on by order-events")
+                .contains("trace 4bf92f3577b34da6a3ce929d0e0e4736")
+                .contains("<li class=\"hop l-same\"").contains("same trace").contains("trace sent").contains("linked by value")
+                .contains("POST /api/orders → 201")
+                .contains("transaction followed across systems");
+        assertThat(page.indexOf("sys\">orders-api<")).isPositive().isLessThan(page.indexOf("sys\">orders-db<"));
+        assertThat(page.indexOf("sys\">orders-db<")).isLessThan(page.indexOf("sys\">order-events<"));
+        assertThat(page).as("a test that threads nothing gets no path").containsOnlyOnce("class=\"txn\"");
+
+        assertThat(RunReport.markdown(data)).contains("Transactions followed across systems: 1, 1 with the trace passed on by the system itself.");
+    }
+
+    @Test
+    void valuesThatMatchByChanceOrStayOnOneSystemAreNotATransaction(@TempDir Path dir) throws Exception {
+        assertThat(TransactionPath.meaningful("ORD-1234567")).isTrue();
+        assertThat(TransactionPath.meaningful("C-42")).isTrue();
+        assertThat(TransactionPath.meaningful("2")).isFalse();
+        assertThat(TransactionPath.meaningful("1200")).isFalse();
+        assertThat(TransactionPath.meaningful("true")).isFalse();
+        assertThat(TransactionPath.meaningful("RES")).isFalse();
+
+        Path results = dir.resolve("test-results");
+        Files.createDirectories(results);
+        Files.writeString(results.resolve("TEST-t.xml"), TRACED_XML);
+        Path audit = dir.resolve("acts.jsonl");
+        Files.writeString(audit, """
+            {"test":"T.orderFlows","instruction":"Place an order","why":"w","source":"REPLAYED","steps":1,"types":{"orders-api":"api"},"data":{"orderId":"ORD-1234567"},"hops":[{"target":"orders-api","kind":"http","detail":"POST /api/orders → 201","link":"SENT"}]}
+            {"test":"T.orderFlows","instruction":"Read order {{orderId}}","why":"w","source":"REPLAYED","steps":1,"types":{"orders-api":"api"},"vars":{"orderId":"ORD-1234567","quantity":"2"},"hops":[{"target":"orders-api","kind":"http","detail":"GET /api/orders/ORD-1234567 → 200","link":"SENT"}]}
+            """);
+
+        assertThat(RunReport.transactions(RunReport.read(results, audit))).as("one system is not a path across systems").isEmpty();
+    }
+
+    @Test
+    void anOlderAuditWithoutTraceFieldsStillReads(@TempDir Path dir) throws Exception {
+        Path results = dir.resolve("test-results");
+        Files.createDirectories(results);
+        Files.writeString(results.resolve("TEST-t.xml"), XML);
+        Path audit = dir.resolve("acts.jsonl");
+        Files.writeString(audit, AUDIT);
+
+        RunReport.Data data = RunReport.read(results, audit);
+        assertThat(RunReport.transactions(data)).isEmpty();
+        assertThat(RunReport.html(data)).doesNotContain("class=\"txn\"");
+    }
 }

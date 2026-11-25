@@ -22,13 +22,26 @@ public final class RunReport {
 
     private static final List<String> SOURCES = List.of("REPLAYED", "HANDED_OFF", "MISSED", "LIVE");
 
-    /** One audited act. */
+    /**
+     * One audited act. {@code vars} are the values it was given with with(...), {@code data} the values it returned
+     * (flattened, by field name), {@code types} the type of each target it was on, and {@code hops} the systems it
+     * touched under the test's trace id.
+     */
     public record Act(String test, String instruction, String why, String source, int steps, int tokens,
-                      String model, String stopReason, List<Note> trace, List<Shot> shots) {
+                      String model, String stopReason, List<Note> trace, List<Shot> shots,
+                      String traceId, Map<String, String> vars, Map<String, String> data, Map<String, String> types, List<Hop> hops) {
         public Act(String test, String instruction, String why, String source, int steps, int tokens, String model, String stopReason) {
             this(test, instruction, why, source, steps, tokens, model, stopReason, List.of(), List.of());
         }
+
+        public Act(String test, String instruction, String why, String source, int steps, int tokens,
+                   String model, String stopReason, List<Note> trace, List<Shot> shots) {
+            this(test, instruction, why, source, steps, tokens, model, stopReason, trace, shots, null, Map.of(), Map.of(), Map.of(), List.of());
+        }
     }
+
+    /** One system an act touched, and how it relates to the test's trace: SENT, SAME, OTHER, NONE or READ. */
+    public record Hop(String target, String kind, String detail, String link) {}
 
     /** One step an act took, in a line. */
     public record Note(String tool, String args, String result, boolean error) {}
@@ -89,10 +102,20 @@ public final class RunReport {
                         n.path("result").asText(""), n.path("error").asBoolean(false))));
                 List<Shot> shots = new ArrayList<>();
                 entry.path("shots").forEach(sh -> shots.add(new Shot(sh.path("target").asText(), sh.path("file").asText())));
+                Map<String, String> vars = new LinkedHashMap<>();
+                entry.path("vars").fields().forEachRemaining(f -> { if (f.getValue().isValueNode()) vars.put(f.getKey(), f.getValue().asText()); });
+                Map<String, String> returned = new LinkedHashMap<>();
+                flatten("", entry.path("data"), returned);
+                Map<String, String> types = new LinkedHashMap<>();
+                entry.path("types").fields().forEachRemaining(f -> types.put(f.getKey(), f.getValue().asText()));
+                List<Hop> hops = new ArrayList<>();
+                entry.path("hops").forEach(hp -> hops.add(new Hop(hp.path("target").asText(), hp.path("kind").asText(),
+                        hp.path("detail").asText(""), hp.path("link").asText("READ"))));
                 acts.add(new Act(entry.path("test").asText(), entry.path("resolved").asText(entry.path("instruction").asText()),
                         entry.path("why").asText(), entry.path("source").asText("LIVE"),
                         entry.path("steps").asInt(), entry.path("inputTokens").asInt() + entry.path("outputTokens").asInt(),
-                        entry.path("model").asText(""), entry.path("stopReason").asText(null), trace, shots));
+                        entry.path("model").asText(""), entry.path("stopReason").asText(null), trace, shots,
+                        entry.path("traceId").asText(null), vars, returned, types, hops));
             }
         }
         Map<String, Integer> bySource = new LinkedHashMap<>();
@@ -105,6 +128,25 @@ public final class RunReport {
             if (!"REPLAYED".equals(act.source())) modelCalls++;
         }
         return new Data(tests, acts, new Totals(bySource, acts.size(), tokens, modelCalls), screenshots);
+    }
+
+    /** Every scalar in an act's returned data, by field path, so a value can be matched to the act that returned it. */
+    private static void flatten(String prefix, JsonNode node, Map<String, String> out) {
+        if (node == null || node.isMissingNode() || node.isNull()) return;
+        if (node.isValueNode()) {
+            out.put(prefix.isEmpty() ? "value" : prefix, node.asText());
+        } else if (node.isObject()) {
+            node.fields().forEachRemaining(f -> flatten(prefix.isEmpty() ? f.getKey() : prefix + "." + f.getKey(), f.getValue(), out));
+        } else if (node.isArray()) {
+            for (int i = 0; i < node.size() && i < 50; i++) flatten(prefix + "[" + i + "]", node.get(i), out);
+        }
+    }
+
+    /** The transactions followed across systems, one per test at most. */
+    public static List<TransactionPath.Path> transactions(Data data) {
+        List<TransactionPath.Path> paths = new ArrayList<>();
+        for (TestRunner.TestOutcome test : data.tests()) TransactionPath.of(actsFor(test, data.acts())).ifPresent(paths::add);
+        return paths;
     }
 
     /** Markdown for a pull request comment. */
@@ -128,6 +170,12 @@ public final class RunReport {
         out.append("| ").append(totals.bySource().get("REPLAYED")).append(" | ").append(totals.bySource().get("HANDED_OFF"))
                 .append(" | ").append(totals.bySource().get("MISSED") + totals.bySource().get("LIVE"))
                 .append(" |\n\n");
+        List<TransactionPath.Path> followed = transactions(data);
+        if (!followed.isEmpty()) {
+            long carried = followed.stream().filter(p -> !p.carriedBy().isEmpty()).count();
+            out.append("Transactions followed across systems: ").append(followed.size())
+                    .append(carried > 0 ? ", " + carried + " with the trace passed on by the system itself" : "").append(".\n\n");
+        }
         out.append("AI: ").append(totals.modelCalls()).append(" model calls, ").append(totals.tokens()).append(" tokens. Run time: ")
                 .append(data.seconds() >= 1 ? String.format("%.1f", data.seconds()) + " s" : String.format("%.0f ms", data.seconds() * 1000))
                 .append(".\n");
@@ -161,6 +209,8 @@ public final class RunReport {
         tile(h, String.valueOf(totals.bySource().get("REPLAYED")), "steps replayed, no AI", "good");
         int ai = totals.bySource().get("HANDED_OFF") + totals.bySource().get("MISSED") + totals.bySource().get("LIVE");
         tile(h, String.valueOf(ai), "acts that used the AI", ai > 0 ? "warn" : "dim");
+        List<TransactionPath.Path> followed = transactions(data);
+        if (!followed.isEmpty()) tile(h, String.valueOf(followed.size()), followed.size() == 1 ? "transaction followed across systems" : "transactions followed across systems", "good");
         tile(h, String.valueOf(totals.modelCalls()), "model calls", "dim");
         tile(h, data.seconds() >= 1 ? String.format(java.util.Locale.ENGLISH, "%.1f s", data.seconds()) : Math.round(data.seconds() * 1000) + " ms", "run time", "dim");
         h.append("</section>");
@@ -178,6 +228,7 @@ public final class RunReport {
             if (test.failure() != null) h.append("<pre class=\"fail\">").append(esc(firstLine(test.failure()))).append("</pre>");
             List<Act> mine = actsFor(test, data.acts());
             used.addAll(mine);
+            TransactionPath.of(mine).ifPresent(path -> transactionBlock(h, path));
             String legacy = data.screenshots().get(test.className() + "." + test.method());
             if (!mine.isEmpty() || legacy != null) {
                 h.append("<div class=\"acts\">");
@@ -220,6 +271,24 @@ public final class RunReport {
         String prefix = simple(test.className()) + "." + base;
         String device = test.method().contains("[") ? test.method().substring(test.method().indexOf('[') + 1, test.method().lastIndexOf(']')) : null;
         return acts.stream().filter(a -> a.test().equals(prefix) || (device != null ? a.test().equals(prefix + "@" + device) : a.test().startsWith(prefix + "@"))).toList();
+    }
+
+    /** The systems one transaction went through, in order, and how each is linked to the test's trace. */
+    private static void transactionBlock(StringBuilder h, TransactionPath.Path path) {
+        List<String> carried = path.carriedBy();
+        h.append("<div class=\"txn\"><div class=\"txn-h\"><span class=\"txn-k\">Transaction</span><b>").append(esc(path.name())).append(" ")
+                .append(esc(path.value())).append("</b><span class=\"txn-sum\">").append(path.systems()).append(" systems");
+        if (!carried.isEmpty()) h.append(" · trace passed on by ").append(esc(String.join(", ", carried)));
+        h.append("</span>");
+        if (path.traceId() != null) h.append("<code class=\"txn-id\" title=\"W3C trace id: search for it in your tracing tool\">trace ").append(esc(path.traceId())).append("</code>");
+        h.append("</div><ol class=\"txn-path\">");
+        for (TransactionPath.Step step : path.steps()) {
+            h.append("<li class=\"hop l-").append(step.link().name().toLowerCase()).append("\" title=\"").append(esc(step.instruction())).append("\"><span class=\"sys\">")
+                    .append(esc(step.target())).append("</span><span class=\"kind\">").append(esc(step.type())).append("</span>");
+            if (!step.detail().isBlank()) h.append("<span class=\"det\">").append(esc(step.detail())).append("</span>");
+            h.append("<span class=\"link\" title=\"").append(esc(step.link().meaning)).append("\">").append(esc(step.link().label)).append("</span></li>");
+        }
+        h.append("</ol></div>");
     }
 
     private static void actBlock(StringBuilder h, StringBuilder boxes, int[] counter, Act act) {
