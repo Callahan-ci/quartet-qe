@@ -10,12 +10,12 @@
 # It runs only what that release contains. It sends nothing anywhere, and it fetches only the one release file.
 set -eu
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 # quartet:lock begin (rewritten by scripts/update-plugin-lock.sh in the Quartet QE repository when a release is published)
-SHA256_mac_arm64="58982e6b21802cb3765718f8a64cd0d2e6c7ccdd4e826c6d767694066e4818ea"
-SHA256_mac="9cd54187da1d5d92b331b917003d0817a830dbacd99f61b61419d38919532e7d"
-SHA256_linux="f4944fd623be3f7fbf82edf931f4c84d06e01fa786c95f99b13327e9c5ca340c"
-SHA256_linux_arm64="8132a37cd26e39d5c627dc7db2f41533e1cecc1304f0b0bdff25469f77361a53"
+SHA256_mac_arm64="9de8b0285a89a3e3c7db380ff3f474e118a44140892ca47e7e67a0ded4f19dc5"
+SHA256_mac="5365099e46a06d6c99fa7eedb7b2bcc2b375ddf57df2a483903b0df742bc1f34"
+SHA256_linux="41be02b30e32de0c64bef7c6fdc3290f13291922669d4256f46eb66beaf91d5c"
+SHA256_linux_arm64="acf7609824768dc6518727e61ccd91d56d78138abef0a83b463a84dbe7639bfd"
 # quartet:lock end
 
 say() { printf 'Quartet QE: %s\n' "$*" >&2; }
