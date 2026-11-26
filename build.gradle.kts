@@ -1,7 +1,7 @@
 subprojects {
     group = "io.quartetqe"
     // A release is built with -PreleaseVersion=1.2.3 (the release workflow does this from the tag).
-    version = (rootProject.findProperty("releaseVersion") as String?) ?: "0.2.1"
+    version = (rootProject.findProperty("releaseVersion") as String?) ?: "0.2.2"
 
     apply(plugin = "java-library")
 
