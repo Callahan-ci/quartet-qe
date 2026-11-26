@@ -29,6 +29,41 @@ final class SiteEnvironment {
         if (!updated.equals(text)) Files.writeString(settings, updated);
     }
 
+    /** True when this repo already has an environment for the site at this address. */
+    static boolean known(Path contextDir, String address) {
+        try {
+            return Files.exists(fileFor(contextDir, hostOf(address)));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /** The site's host name, as people say it, such as books.toscrape.com. */
+    static String displayHost(String address) {
+        String host = hostOf(address).getHost();
+        return host.startsWith("www.") ? host.substring(4) : host;
+    }
+
+    private static URI hostOf(String address) {
+        URI uri;
+        try {
+            uri = URI.create(address.strip().contains("://") ? address.strip() : "https://" + address.strip());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("'" + address + "' is not a web address. Use something like https://www.example.com.");
+        }
+        if (uri.getHost() == null || uri.getScheme() == null || !(uri.getScheme().equals("http") || uri.getScheme().equals("https"))) {
+            throw new IllegalArgumentException("'" + address + "' is not a web address. Use something like https://www.example.com.");
+        }
+        return uri;
+    }
+
+    private static Path fileFor(Path contextDir, URI uri) {
+        String host = uri.getHost();
+        String bare = host.startsWith("www.") ? host.substring(4) : host;
+        String slug = bare.replaceAll("[^A-Za-z0-9]+", "-").replaceAll("^-|-$", "").toLowerCase();
+        return contextDir.resolve("environments").resolve(slug + ".yaml");
+    }
+
     /** Returns the environment file path relative to the project root, creating it if it does not exist. */
     static String ensure(Path root, Path contextDir, String address) throws IOException {
         URI uri;

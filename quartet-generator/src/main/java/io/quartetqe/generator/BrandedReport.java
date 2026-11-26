@@ -20,7 +20,7 @@ final class BrandedReport {
 
     record Fault(String description, String result) {}
 
-    record Model(String storyId, String title, boolean approved, List<String> attention, List<Criterion> criteria,
+    record Model(String storyId, String title, boolean approved, List<String> attention, List<String> notes, List<Criterion> criteria,
                  List<Principle> principles, List<String> questions, List<Fault> faults, double detectionRate, int falseAlarms,
                  int modelTurns, long tokens, int selfCorrections, boolean ran, int passed, int failed, int skipped, double seconds) {}
 
@@ -71,8 +71,13 @@ final class BrandedReport {
 
         // Attention
         h.append("<section><h2>Needs your attention</h2>");
-        if (m.attention().isEmpty()) h.append("<div class=\"clear\"><span class=\"dot good\"></span>Nothing. Every check passed.</div>");
-        else for (String item : m.attention()) h.append("<div class=\"alert\"><span class=\"dot bad\"></span><div>").append(inline(item)).append("</div></div>");
+        if (m.attention().isEmpty()) {
+            h.append("<div class=\"clear\"><span class=\"dot good\"></span>").append(m.notes().isEmpty() ? "Nothing. Every check passed." : "Nothing blocks merging.").append("</div>");
+        } else for (String item : m.attention()) h.append("<div class=\"alert\"><span class=\"dot bad\"></span><div>").append(inline(item)).append("</div></div>");
+        if (!m.notes().isEmpty()) {
+            h.append("<p class=\"note\">Worth a look. These do not block merging.</p>");
+            for (String item : m.notes()) h.append("<div class=\"alert look\"><span class=\"dot warn\"></span><div>").append(inline(item)).append("</div></div>");
+        }
         h.append("</section>");
 
         // Criteria
@@ -127,7 +132,7 @@ final class BrandedReport {
             }
             h.append("</details>");
         }
-        h.append("</div><p class=\"note foot\">The AI used ").append(m.modelTurns()).append(" model turns and ").append(m.tokens()).append(" tokens. Its own checks sent back ")
+        h.append("</div><p class=\"note foot\">").append(esc(Scorecard.aiUse(m.modelTurns(), m.tokens()))).append(" Its own checks sent back ")
                 .append(m.selfCorrections()).append(" draft(s) before review.</p></section>");
 
         // Footer
@@ -203,7 +208,7 @@ final class BrandedReport {
         h2{font:700 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:16px}
         .note{color:var(--dim);font-size:14px;margin:-4px 0 14px}.note.foot{margin:16px 0 0}
         .clear,.alert{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:10px}
-        .alert{border-color:color-mix(in srgb,var(--bad) 55%,var(--line))}.alert code{background:var(--panel2);padding:1px 6px;border-radius:5px}
+        .alert{border-color:color-mix(in srgb,var(--bad) 55%,var(--line))}.alert.look{border-color:color-mix(in srgb,var(--warn) 55%,var(--line))}.alert code{background:var(--panel2);padding:1px 6px;border-radius:5px}
         .dot{flex:none;width:10px;height:10px;border-radius:50%;margin-top:7px;background:var(--dim)}.dot.good{background:var(--good)}.dot.bad{background:var(--bad)}.dot.warn{background:var(--warn)}
         .ac{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--dim);border-radius:14px;margin-bottom:12px;overflow:hidden}
         .ac.s-good{border-left-color:var(--good)}.ac.s-bad{border-left-color:var(--bad)}.ac.s-none{border-left-color:var(--warn)}

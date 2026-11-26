@@ -90,6 +90,60 @@ class StarterTest {
                 .hasMessageContaining("No tests repo is set up yet");
     }
 
+    private Path existingTestsRepo(String name) throws IOException {
+        Path repo = temp.resolve(name);
+        try (java.util.stream.Stream<Path> all = Files.walk(release.resolve("skeleton"))) {
+            for (Path from : all.toList()) {
+                Path to = repo.resolve(release.resolve("skeleton").relativize(from).toString());
+                if (Files.isDirectory(from)) Files.createDirectories(to);
+                else Files.copy(from, to);
+            }
+        }
+        return repo;
+    }
+
+    private static final String BOOKS = "{\"site\":\"https://books.example.com\",\"story_text\":\"# Browse\\n\\n## Acceptance criteria\\n\\n- AC1: The catalogue loads.\"}";
+
+    @Test
+    void aNewSiteIsNotAddedSilentlyToATestsRepoChosenEarlierThatAlreadyHasTests() throws Exception {
+        Path root = Starter.prepare();
+        Path shop = existingTestsRepo("shop-tests");
+        List<Tool> first = new ChatSession(new Main(root, null), root.resolve("build/quartet-host")).tools();
+        call(first, "quartet_setup", "{\"name\":\"shop\",\"tests_repo\":\"existing\",\"path\":" + Json.str(shop.toString()) + "}");
+        Path written = new Main(shop, null).testSourceRoot().resolve("generated/checkout/CheckoutTest.java");
+        Files.createDirectories(written.getParent());
+        Files.writeString(written, "class CheckoutTest {}");
+
+        // A later conversation, about a different site.
+        List<Tool> later = new ChatSession(new Main(root, null), root.resolve("build/quartet-host")).tools();
+        JsonNode asked = call(later, "quartet_start", BOOKS);
+        assertThat(asked.path("needs_decisions").asBoolean()).isTrue();
+        assertThat(asked.toString()).contains(shop.toString()).contains("books.example.com").contains("\"value\":\"new\"").contains("\"value\":\"same\"");
+        assertThat(shop.resolve("context/environments/books-example-com.yaml")).as("nothing is written before the user answers").doesNotExist();
+
+        JsonNode started = call(later, "quartet_start", BOOKS.replace("{", "{\"use_tests_repo\":true,"));
+        assertThat(started.path("needs_decisions").asBoolean(false)).isFalse();
+        assertThat(started.path("tests_repo").asText()).isEqualTo(shop.toString());
+        assertThat(started.path("tests_repo_note").asText()).contains(shop.toString()).contains("tests_repo=new");
+
+        // The site is in that repo now, so the next conversation goes straight there.
+        List<Tool> next = new ChatSession(new Main(root, null), root.resolve("build/quartet-host")).tools();
+        assertThat(call(next, "quartet_start", BOOKS).path("needs_decisions").asBoolean(false)).isFalse();
+    }
+
+    @Test
+    void aTestsRepoJustChosenOrStillEmptyIsUsedWithoutAskingAgain() throws Exception {
+        Path root = Starter.prepare();
+        Path fresh = existingTestsRepo("fresh-tests");
+        List<Tool> tools = new ChatSession(new Main(root, null), root.resolve("build/quartet-host")).tools();
+        call(tools, "quartet_setup", "{\"name\":\"books\",\"tests_repo\":\"existing\",\"path\":" + Json.str(fresh.toString()) + "}");
+        assertThat(call(tools, "quartet_start", BOOKS).path("tests_repo").asText()).isEqualTo(fresh.toString());
+
+        List<Tool> later = new ChatSession(new Main(root, null), root.resolve("build/quartet-host")).tools();
+        assertThat(call(later, "quartet_start", BOOKS.replace("books.example.com", "other.example.com")).path("needs_decisions").asBoolean(false))
+                .as("a repo with no tests yet has nothing to mix the new site with").isFalse();
+    }
+
     private static JsonNode call(List<Tool> tools, String name, String arguments) throws Exception {
         Tool tool = tools.stream().filter(t -> t.name().equals(name)).findFirst().orElseThrow();
         return tool.handler().call(Json.parse(arguments));
