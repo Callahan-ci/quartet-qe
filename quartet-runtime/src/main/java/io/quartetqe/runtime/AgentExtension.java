@@ -53,7 +53,7 @@ public final class AgentExtension implements ParameterResolver, AfterEachCallbac
         if (agent == null) return;
         boolean failed = context.getExecutionException().isPresent();
         if (failed) saveScreenshots(agent);
-        if (failed) agent.testFailed();
+        if (failed) agent.testFailed(context.getExecutionException().map(Throwable::toString).orElse(null));
         else agent.testPassed();
         agent.close();
     }

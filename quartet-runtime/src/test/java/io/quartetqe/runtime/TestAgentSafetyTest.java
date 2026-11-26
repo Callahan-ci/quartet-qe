@@ -173,7 +173,74 @@ class TestAgentSafetyTest {
         llm.add(AgentLoop.FINISH, finish(Json.obj().put("status", "RESERVED")));
         place();
         agent.testFailed();
-        assertThat(Files.exists(dir.resolve("cache"))).isFalse();
+        assertThat(Files.exists(dir.resolve("cache/_shared"))).as("nothing is proven by a failing test").isFalse();
+        assertThat(Files.exists(dir.resolve("cache/_unproven"))).as("its steps are kept, marked unproven").isTrue();
+    }
+
+    private Path env() {
+        return dir.resolve("context/environments/t.yaml");
+    }
+
+    private ActResult readOrder(TestAgent on) {
+        return on.act("Read the order", why("status is visible"), on("api"), returns("status"));
+    }
+
+    @Test
+    void aTestThatFoundABugFailsTheSameWayOnReplayWithNoAiAndPassesOnceTheBugIsFixed() throws Exception {
+        // First run, with the AI: the product is broken, so the test's assertion fails and nothing is proven.
+        status = "PENDING";
+        llm.add("http_request", get());
+        llm.add(AgentLoop.FINISH, finish(Json.obj().put("status", "PENDING")));
+        assertThat(readOrder(agent).get("status")).isNotEqualTo("RESERVED");
+        agent.testFailed("org.opentest4j.AssertionFailedError: \nexpected: \"RESERVED\"\n but was: \"PENDING\"\n\tat T.m(T.java:1)");
+        Path unproven = Files.list(dir.resolve("cache/_unproven")).findFirst().orElseThrow();
+        JsonNode kept = Json.parse(Files.readString(unproven));
+        assertThat(kept.path("unproven").path("failure").asText()).isEqualTo("expected: \"RESERVED\" but was: \"PENDING\"");
+        int prompts = llm.prompts.size();
+
+        // CI replays with no AI: the same bug, the same failure, not "no recording".
+        TestAgent ci = agent(env(), TestAgent.Mode.REPLAY);
+        ActResult stillBroken = readOrder(ci);
+        assertThat(stillBroken.source()).isEqualTo(ActResult.Source.REPLAYED);
+        assertThat(stillBroken.get("status")).isEqualTo("PENDING");
+        ci.testFailed("expected RESERVED but was PENDING");
+        assertThat(Files.exists(dir.resolve("cache/_shared"))).isFalse();
+        assertThat(unproven).exists();
+
+        // The developer fixes the product. The next replay passes, still with no AI, and the steps are proven.
+        status = "RESERVED";
+        TestAgent fixed = agent(env(), TestAgent.Mode.REPLAY);
+        assertThat(readOrder(fixed).get("status")).isEqualTo("RESERVED");
+        fixed.testPassed();
+        assertThat(unproven).doesNotExist();
+        Path proven = Files.list(dir.resolve("cache/_shared")).findFirst().orElseThrow();
+        assertThat(Files.readString(proven)).doesNotContain("unproven");
+
+        // From then on it is an ordinary recording.
+        TestAgent later = agent(env(), TestAgent.Mode.REPLAY);
+        assertThat(readOrder(later).get("status")).isEqualTo("RESERVED");
+        assertThat(llm.prompts).hasSize(prompts);
+    }
+
+    @Test
+    void anUnprovenReplayThatStopsSaysWhichFailedRunItCameFrom() throws Exception {
+        llm.add("http_request", get());
+        llm.add(AgentLoop.FINISH, finish(Json.obj().put("status", "RESERVED")));
+        readOrder(agent);
+        agent.testFailed("org.opentest4j.AssertionFailedError: Expecting actual: 500 to be between: [400, 499]");
+
+        getStatus = 503;
+        TestAgent ci = agent(env(), TestAgent.Mode.REPLAY);
+        assertThatThrownBy(() -> readOrder(ci)).isInstanceOf(AgentActException.class)
+                .hasMessageContaining("Replay stopped at recorded step #1")
+                .hasMessageContaining("whose test failed: Expecting actual: 500 to be between: [400, 499]")
+                .hasMessageContaining("./quartet-qe run");
+    }
+
+    @Test
+    void aStepThatNeverRanStillSaysThereIsNoRecording() {
+        TestAgent ci = agent(env(), TestAgent.Mode.REPLAY);
+        assertThatThrownBy(() -> readOrder(ci)).hasMessageContaining("No recording for: Read the order");
     }
 
     @Test

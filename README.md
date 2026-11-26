@@ -178,6 +178,8 @@ The first run uses the AI (an API model, or the AI in your chat) to work out how
 
 If a step no longer works, for example a renamed button, it is handed back to the AI and re-recorded. It is never guessed. Recordings carry a replay policy version: after an upgrade that changes the replay rules, old recordings are re-recorded in `auto` mode and refused in `replay` mode, with a message saying which step stopped and why.
 
+A recording is proven only when its test passes. When a test fails, usually because it found a real bug, its steps are kept in `recordings/_unproven/` with why it failed. Commit them with the tests: every replay, in CI too, then shows the real failure with no AI rather than "no recording". Once the bug is fixed, the next replay passes and the steps become an ordinary recording. They can never make a test pass on their own, because the test's assertions still decide.
+
 ## What it can test
 
 | Layer | How |

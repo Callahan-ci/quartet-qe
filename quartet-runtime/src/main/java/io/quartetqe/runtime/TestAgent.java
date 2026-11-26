@@ -138,10 +138,17 @@ public final class TestAgent implements AutoCloseable {
         Map<String, Tool> tools = toolsFor(spec.on());
         // Steps are stored once and shared by every test that uses them. The per-test file is only read, for older recordings.
         Path file = recorder.sharedFile(key(spec, device));
+        Path unprovenFile = recorder.unprovenFile(key(spec, device));
         JsonNode recording = null;
+        boolean unproven = false;
         if (mode != Mode.LIVE) {
             recording = recorder.load(file);
             if (recording == null) recording = recorder.load(recorder.fileFor(testId, key(spec)));
+            if (recording == null) {
+                // Steps from a run whose test failed. Replaying them shows the same failure with no AI, and a pass proves them.
+                recording = recorder.load(unprovenFile);
+                unproven = recording != null;
+            }
         }
         if (recording != null && !REPLAY_POLICY_VERSION.equals(recording.path("replayPolicy").asText())) {
             if (mode == Mode.REPLAY) {
@@ -155,6 +162,10 @@ public final class TestAgent implements AutoCloseable {
         Replay replay = recording == null ? null : replay(recording, spec, tools);
         if (replay != null && replay.complete()) {
             ActRecorder.REPLAYED.incrementAndGet();
+            if (unproven) {
+                ActRecorder.UNPROVEN.incrementAndGet();
+                recorder.stage(file, recording, unprovenFile); // proven if this test passes, kept as unproven if not
+            }
             ActResult result = new ActResult(recording.path("summary").asText(),
                     Binder.resolve(recording.path("data"), replay.scope()), ActResult.Source.REPLAYED);
             audit(spec, result.source(), replay.results().size(), 0, 0, null, recording.path("model").asText(), replayTrace(recording, replay.results()), result.data());
@@ -164,9 +175,9 @@ public final class TestAgent implements AutoCloseable {
             throw new AgentActException(replay == null
                     ? "No recording for: " + spec.instruction() + ". Tests never call the AI on their own. Run ./quartet-qe run to record, or set QUARTET_MODE=auto."
                     : "Replay stopped at recorded step " + (replay.stoppedAt() == null ? "0" : "#" + replay.stoppedAt())
-                            + " (" + replay.stopReason() + ") for: " + spec.instruction());
+                            + " (" + replay.stopReason() + ") for: " + spec.instruction() + (unproven ? unprovenNote(recording) : ""));
         }
-        return live(spec, tools, file, replay);
+        return live(spec, tools, file, unprovenFile, replay, recording);
     }
 
     /**
@@ -262,7 +273,14 @@ public final class TestAgent implements AutoCloseable {
         return new Replay(results, total, null, true, scope, null);
     }
 
-    private ActResult live(Spec spec, Map<String, Tool> tools, Path file, Replay replay) {
+    /** Where unproven steps came from, so a stopped replay says which failed run they belong to. */
+    private static String unprovenNote(JsonNode recording) {
+        JsonNode note = recording.path("unproven");
+        return ". These steps are from a run on " + note.path("since").asText("an earlier day") + " whose test failed: "
+                + note.path("failure").asText("the test failed") + ". Fix what failed, then run ./quartet-qe run to record again.";
+    }
+
+    private ActResult live(Spec spec, Map<String, Tool> tools, Path file, Path unprovenFile, Replay replay, JsonNode replayed) {
         List<JsonNode> prefix = replay == null ? List.of() : replay.results();
         StringBuilder prompt = new StringBuilder(header(spec, "Instruction"));
         if (!spec.returns().isEmpty()) prompt.append("\nReturn these fields in finish.data: ").append(spec.returns()).append('\n');
@@ -298,8 +316,8 @@ public final class TestAgent implements AutoCloseable {
         (source == ActResult.Source.HANDED_OFF ? ActRecorder.HANDED_OFF : ActRecorder.MISSED).incrementAndGet();
 
         ArrayNode steps = Json.arr();
-        JsonNode previous = replay == null ? null : recorder.load(file);
-        for (int i = 0; i < prefix.size(); i++) steps.add(previous.path("steps").path(i));
+        // The steps that replayed before the hand-off, from whichever recording was replayed.
+        for (int i = 0; i < prefix.size(); i++) steps.add(replayed.path("steps").path(i));
         List<JsonNode> prior = new ArrayList<>(prefix);
         for (AgentLoop.Step step : kept) {
             steps.addObject().put("tool", step.tool())
@@ -315,7 +333,7 @@ public final class TestAgent implements AutoCloseable {
         recording.set("on", Json.MAPPER.valueToTree(spec.on()));
         recording.set("steps", steps);
         recording.set("data", bound.template());
-        recorder.stage(file, recording);
+        recorder.stage(file, recording, unprovenFile);
 
         audit(spec, source, outcome.steps().size(), outcome.inputTokens(), outcome.outputTokens(), replay == null ? null : replay.stopReason(), client.model(), liveTrace(outcome.steps()), data);
         return new ActResult(outcome.finish().path("summary").asText(), data, source);
@@ -475,7 +493,12 @@ public final class TestAgent implements AutoCloseable {
     }
 
     void testFailed() {
-        recorder.discard();
+        testFailed(null);
+    }
+
+    /** Keeps this run's new steps as unproven, with why the test failed, so a replay can show the same failure. */
+    void testFailed(String failure) {
+        recorder.discard(failure);
     }
 
     @Override
