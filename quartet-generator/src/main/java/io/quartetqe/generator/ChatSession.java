@@ -56,6 +56,8 @@ final class ChatSession {
 
     private Main main;
     private String siteEnvironment;
+    /** The tests repo the user chose or confirmed in this session, so they are not asked about it again. */
+    private Path confirmedRepo;
     private final Path hostDir;
     private final Path requests;
     private final Path responses;
@@ -105,7 +107,8 @@ final class ChatSession {
             {"type":"object","properties":{
               "story":{"type":"string","description":"A story file path, or jira:KEY-1, ado:123, github:45, gitlab:7"},
               "story_text":{"type":"string","description":"The story itself, as markdown with an Acceptance criteria list. Quartet saves it in stories/. Use this when the user described what to test and there is no story file."},
-              "site":{"type":"string","description":"A public website to test, such as https://www.example.com. Quartet creates the environment for it: a browser target on desktop and phones, an HTTP target, and an allow-list of only that site."}}}""",
+              "site":{"type":"string","description":"A public website to test, such as https://www.example.com. Quartet creates the environment for it: a browser target on desktop and phones, an HTTP target, and an allow-list of only that site."},
+              "use_tests_repo":{"type":"boolean","description":"Set true only after the user agreed to add a new site to the tests repo chosen earlier, when quartet_start asked."}}}""",
                 this::start));
         tools.add(Tool.of("quartet_setup", "Save the user's answers to the setup questions that quartet_start or quartet_onboarding returned: the product name and where the tests live. Creates the new tests repo when asked. Also used later to write the Jenkinsfile and job once the user wants Jenkins (jenkins=true). If an answer was empty, use the recommended default and carry on.", """
             {"type":"object","properties":{
@@ -256,13 +259,49 @@ final class ChatSession {
                     throw new IllegalStateException("The tests repo chosen earlier (" + target + ") is missing. Fix testsRepo in "
                             + SetupChoices.FILE + ", or delete that file to be asked again.");
                 }
-                main = new Main(target, siteEnvironment);
+                Main chosen = new Main(target, siteEnvironment);
+                String site = args.path("site").asText("").strip();
+                if (args.path("use_tests_repo").asBoolean(false)) confirmedRepo = target;
+                if (!site.isBlank() && !target.equals(confirmedRepo) && hasTests(chosen)
+                        && !SiteEnvironment.known(target.resolve(chosen.settings.path("context").asText("context")), site)) {
+                    return newSiteDecision(target, site);
+                }
+                main = chosen;
             }
             return null;
         }
         if (!framework || demo) return null; // a tests repo needs no questions: its first story can start at once
 
         return decisions(Starter.isStarter(main.root));
+    }
+
+    /** True when the repo already holds written tests. A fresh repo has nothing to mix a new site with. */
+    private static boolean hasTests(Main repo) throws IOException {
+        Path generated = repo.testSourceRoot().resolve("generated");
+        if (!Files.isDirectory(generated)) return false;
+        try (Stream<Path> files = Files.walk(generated)) {
+            return files.anyMatch(p -> p.toString().endsWith(".java"));
+        }
+    }
+
+    /**
+     * A new site would go into the tests repo chosen earlier, which may be for another product. Ask rather than
+     * mixing them silently: add it there, or start a separate tests repo for it.
+     */
+    private static ObjectNode newSiteDecision(Path repo, String site) {
+        String host = SiteEnvironment.displayHost(site);
+        ObjectNode out = Json.obj().put("needs_decisions", true).put("tests_repo", repo.toString());
+        ArrayNode questions = out.putArray("ask_the_user");
+        ObjectNode where = questions.addObject().put("id", "tests_repo")
+                .put("question", "Your tests so far live in " + repo + ". Should the tests for " + host + " go there too, or in a new tests repo of their own?");
+        ArrayNode options = where.putArray("options");
+        options.addObject().put("value", "new").put("meaning", "A new tests repo for " + host + ". Recommended when it is a different product: one tests repo per product.");
+        options.addObject().put("value", "same").put("meaning", "Add it to " + repo + ", next to the tests already there.");
+        out.put("why", "Quartet remembered " + repo + " from earlier, and " + host + " is not in it yet. Nothing has been written.");
+        out.put("next", "Ask this in plain words, naming the folder. For a new repo: call quartet_setup with tests_repo=new and name="
+                + Json.str(host) + ", then call quartet_start again with the same arguments. To add it to the existing repo: call quartet_start again "
+                + "with the same arguments plus use_tests_repo=true.");
+        return out;
     }
 
     /** The two things to ask together before setting up in the framework folder. Everything else has a default. */
@@ -316,6 +355,7 @@ final class ChatSession {
         if (!target.equals(origin)) SetupChoices.write(origin, target.toString(), jenkins);
         SetupChoices.write(target, "here", jenkins);
         main = new Main(target, siteEnvironment);
+        confirmedRepo = target;
         if (!name.isBlank()) Onboarding.writeProduct(main, name, args.path("owner").asText(""), "");
 
         ObjectNode out = Json.obj().put("saved", true).put("tests_repo", target.toString()).put("jenkins", jenkins);
@@ -434,6 +474,8 @@ final class ChatSession {
         out.put("existing_tests", files.keySet().toString());
         out.put("existing_steps", shared.keySet().toString());
         out.put("tests_repo", main.root.toString());
+        out.put("tests_repo_note", "Tell the user the tests are being written in " + main.root
+                + ". To keep a different product's tests apart, call quartet_setup with tests_repo=new and a name, then start again.");
         List<String> basics = Onboarding.missingBasics(main);
         if (!basics.isEmpty() && siteEnvironment == null) {
             ArrayNode incomplete = out.putArray("setup_incomplete");

@@ -29,8 +29,9 @@ intro() {
   say "one page to review. After the first recording the tests replay with no AI."
   say ""
   say "This takes a few minutes. It checks your machine, builds the tool, then"
-  say "offers things to try. Nothing is installed outside this folder, and nothing is"
-  say "committed or pushed."
+  say "offers things to try. The only thing it puts outside this folder is a link at"
+  say "~/.quartet/current, which tests repos use to find Quartet QE, and it asks before"
+  say "changing one that already points somewhere else. Nothing is committed or pushed."
   say ""
 }
 
@@ -63,7 +64,7 @@ build_tool() {
   say "Building the tool. The first time takes a minute or two."
   if ./quartet-qe doctor; then
     if [ "$FRAMEWORK" -eq 1 ]; then
-      ./install-quartet.sh && ok "Installed for your tests repos at ~/.quartet/current (they hold only tests)"
+      ./install-quartet.sh || info "Could not install the link at ~/.quartet/current. Tests repos will not find this copy."
     fi
     say ""
     return 0

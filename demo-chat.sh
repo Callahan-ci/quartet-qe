@@ -23,5 +23,5 @@ CHAT=$?
 
 echo; echo "== Second run replays what the chat recorded, with no AI at all"
 env -u AI_PROVIDER -u QUARTET_HOST_DIR AI_PROVIDER=none QUARTET_MODE=replay ./gradlew :e2e-tests:test --rerun --tests 'generated.shop142.*' --console=plain -i 2>/dev/null | grep -E '\[quartet\] Recordings|BUILD'
-echo; echo "Review page: reports/SHOP-142/review.md"
+echo; echo "Review page: reports/SHOP-142/review.html"
 exit $CHAT

@@ -33,5 +33,5 @@ cp demo-shopflow/scripted-model/BrittleOrderTest.java.txt e2e-tests/src/test/jav
 $AGENT repair --file e2e-tests/src/test/java/generated/brittle/BrittleOrderTest.java --selector 'generated.brittle.*'
 REPAIR=$?
 
-echo; echo "Review page: reports/SHOP-142/review.md"
+echo; echo "Review page: reports/SHOP-142/review.html"
 [ "$GENERATE" -eq 0 ] && [ "$REPAIR" -eq 0 ]

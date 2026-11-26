@@ -101,7 +101,7 @@ Or run it on a story directly:
 ```
 
 ```text
-Context  26 files, 12 engineering principles
+Context  22 files, 12 engineering principles
 Story    SHOP-142: Checkout reserves stock and confirms the order (7 acceptance criteria)
 Tests    6 written: 6 passed, 0 failed, 0 skipped
 Review   reports/SHOP-142/review.html (ready to merge)
@@ -347,7 +347,7 @@ The value is typed hidden, is never printed, and goes into `.env`, which git ign
 
 ## Quick start
 
-Needs JDK 21. No Docker.
+Needs Java 21 or newer. No Docker.
 
 ### See it working with no key
 

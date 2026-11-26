@@ -88,4 +88,38 @@ class ReviewPageTest {
         String page = Files.readString(dir.resolve("review.html"));
         assertThat(page).contains("The tests were written but not run.").contains("Not run").doesNotContain("tests passed");
     }
+    @Test
+    void aFindingThatDoesNotBlockMergingIsShownUnderNeedsYourAttentionNotHidden(@TempDir Path dir) throws Exception {
+        WorkItem covered = WorkItem.of("S-1", "Title", "- AC1: Page fits", "u");
+        TestRunner.Result run = new TestRunner.Result(0, List.of(new TestRunner.TestOutcome("T", "pageFits [desktop]", true, null, false, 0.2)), "");
+        Finding gap = new Finding("REVIEW-QA", "Quality built in from day one", Finding.Severity.WARN, "T.java",
+                "No test covers two customers buying the last unit at the same time.");
+        TestGenerator.Result reviewed = new TestGenerator.Result(Map.of("T.java", TEST), Json.arr(), Json.arr(), List.of(), List.of(gap), List.of(), 1, 3, 0, 0, 0, Map.of());
+
+        assertThat(Scorecard.write(dir, covered, principles, List.of(), reviewed, run, null).approved()).as("a note does not block merging").isTrue();
+        String md = Files.readString(dir.resolve("review.md"));
+        assertThat(md).contains("Nothing blocks merging.").contains("**Worth a look** (does not block merging):")
+                .contains("- **Quality built in from day one:** No test covers two customers buying the last unit at the same time.")
+                .doesNotContain("Nothing.\n");
+        assertThat(md.indexOf("Worth a look")).isLessThan(md.indexOf("What was tested"));
+
+        String page = Files.readString(dir.resolve("review.html"));
+        assertThat(page).contains("Nothing blocks merging.").doesNotContain("Nothing. Every check passed.").contains("Worth a look");
+        assertThat(page.indexOf("two customers buying the last unit")).isLessThan(page.indexOf("What was tested"));
+    }
+
+    @Test
+    void onTheChatPathTheTokensAreSaidToBeCountedByTheChatToolNotShownAsZero(@TempDir Path dir) throws Exception {
+        assertThat(Scorecard.aiUse(3, 0)).isEqualTo("The AI in your chat tool took 3 model turns; your chat tool counts its tokens.");
+        assertThat(Scorecard.aiUse(1, 0)).contains("1 model turn;");
+        assertThat(Scorecard.aiUse(3, 15)).isEqualTo("The AI used 3 model turns and 15 tokens.");
+        assertThat(Scorecard.aiUse(0, 0)).isEqualTo("The AI used 0 model turns and 0 tokens.");
+
+        WorkItem covered = WorkItem.of("S-1", "Title", "- AC1: Page fits", "u");
+        TestRunner.Result run = new TestRunner.Result(0, List.of(new TestRunner.TestOutcome("T", "pageFits [desktop]", true, null)), "");
+        Scorecard.write(dir, covered, principles, List.of(), new TestGenerator.Result(Map.of("T.java", TEST), Json.arr(), Json.arr(),
+                List.of(), List.of(), List.of(), 1, 3, 0, 0, 0, Map.of()), run, null);
+        assertThat(Files.readString(dir.resolve("review.md"))).contains("your chat tool counts its tokens").doesNotContain("0 tokens");
+        assertThat(Files.readString(dir.resolve("review.html"))).contains("your chat tool counts its tokens").doesNotContain("0 tokens");
+    }
 }

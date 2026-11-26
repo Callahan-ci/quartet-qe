@@ -36,12 +36,20 @@ public final class Scorecard {
                     f.benign() ? "**False alarm:** a harmless change failed a test: " + f.description() : "**Missed bug:** " + f.description()));
         }
         boolean approved = attention.isEmpty();
+        // Findings that do not block merging still deserve a look, so they are listed here, not left in the collapsed table.
+        List<String> notes = new ArrayList<>();
+        all.stream().filter(f -> !f.blocking() && !storyQuestions.contains(f))
+                .map(f -> "**" + f.principle() + ":** " + f.message()).distinct().forEach(notes::add);
 
         Map<String, List<String>> criteriaByTest = StaticRules.criteriaByTest(generation.files());
         StringBuilder md = new StringBuilder("# Review: ").append(story.id()).append(' ').append(story.title()).append("\n\n");
         md.append(approved ? "**Ready to merge.**" : "**Needs your attention.**").append("\n\n## Needs your attention\n\n");
-        if (attention.isEmpty()) md.append("Nothing.\n");
+        if (attention.isEmpty()) md.append(notes.isEmpty() ? "Nothing.\n" : "Nothing blocks merging.\n");
         attention.forEach(item -> md.append("- ").append(item).append('\n'));
+        if (!notes.isEmpty()) {
+            md.append("\n**Worth a look** (does not block merging):\n\n");
+            notes.forEach(item -> md.append("- ").append(item).append('\n'));
+        }
 
         md.append("\n## What was tested\n\n| Acceptance criterion | Test | Result |\n| --- | --- | --- |\n");
         for (var criterion : story.acceptanceCriteria().entrySet()) {
@@ -67,8 +75,8 @@ public final class Scorecard {
             md.append("| ").append(name).append(" | ").append(status).append(" | ")
                     .append(matching.isEmpty() ? "" : String.join("<br>", matching.stream().map(f -> cell(f.message())).toList())).append(" |\n");
         }
-        md.append("\nThe AI used ").append(generation.turns()).append(" model turns and ").append(generation.inputTokens() + generation.outputTokens())
-                .append(" tokens. Its own checks sent back ").append(generation.selfCorrections()).append(" draft(s) before review.\n");
+        md.append("\n").append(aiUse(generation.turns(), generation.inputTokens() + generation.outputTokens()))
+                .append(" Its own checks sent back ").append(generation.selfCorrections()).append(" draft(s) before review.\n");
         if (faults != null) {
             md.append(String.format("%nBugs were planted to prove the tests catch them: %.0f%% caught, %d false alarm(s).%n%n", faults.detectionRate() * 100, faults.falseAlarms()));
             md.append("| Planted change | Result |\n| --- | --- |\n");
@@ -85,14 +93,25 @@ public final class Scorecard {
         long failed = run == null ? 0 : run.failures().size();
         json.put("passed", passed).put("failed", failed).put("skipped", skipped);
         Files.writeString(directory.resolve("review.md"), md.toString());
-        Files.writeString(directory.resolve("review.html"), BrandedReport.render(model(story, approved, attention, criteriaByTest, run, principles, all, questions,
+        Files.writeString(directory.resolve("review.html"), BrandedReport.render(model(story, approved, attention, notes, criteriaByTest, run, principles, all, questions,
                 faults, generation, passed, failed, skipped)));
         Files.writeString(directory.resolve("review.json"), Json.pretty(json) + "\n");
         return new Summary(approved, criteriaByTest.size(), passed, failed, skipped, attention.size());
     }
 
     /** The same facts as the markdown, shaped for the branded page. */
-    private static BrandedReport.Model model(WorkItem story, boolean approved, List<String> attention, Map<String, List<String>> criteriaByTest,
+    /**
+     * How much the AI was used. On the chat path the AI in the user's chat tool did the work, so its tokens are
+     * counted there, not here: saying "0 tokens" would read like a fault.
+     */
+    static String aiUse(int turns, long tokens) {
+        if (turns > 0 && tokens == 0) {
+            return "The AI in your chat tool took " + turns + " model turn" + (turns == 1 ? "" : "s") + "; your chat tool counts its tokens.";
+        }
+        return "The AI used " + turns + " model turns and " + tokens + " tokens.";
+    }
+
+    private static BrandedReport.Model model(WorkItem story, boolean approved, List<String> attention, List<String> notes, Map<String, List<String>> criteriaByTest,
                                              TestRunner.Result run, Principles principles, List<Finding> all, List<Finding> questions,
                                              FaultEvaluator.Evaluation faults, TestGenerator.Result generation, long passed, long failed, long skipped) {
         List<BrandedReport.Criterion> criteria = new ArrayList<>();
@@ -114,7 +133,7 @@ public final class Scorecard {
                     f.benign() ? (f.detected() ? "FALSE ALARM" : "OK") : (f.detected() ? "CAUGHT" : "MISSED"))).toList();
         }
         double seconds = run == null ? 0 : run.tests().stream().mapToDouble(TestRunner.TestOutcome::seconds).sum();
-        return new BrandedReport.Model(story.id(), story.title(), approved, attention, criteria, checks,
+        return new BrandedReport.Model(story.id(), story.title(), approved, attention, notes, criteria, checks,
                 questions.stream().filter(f -> !f.blocking()).map(f -> f.location() + ": " + f.message()).toList(), planted,
                 faults == null ? 0 : faults.detectionRate(), faults == null ? 0 : faults.falseAlarms(),
                 generation.turns(), generation.inputTokens() + generation.outputTokens(), generation.selfCorrections(),
