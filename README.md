@@ -71,7 +71,7 @@ The demo shop passes the trace on, and `--prove` plants a version that drops it,
 
 Pick one. Each needs Java 21 or newer.
 
-**In Claude Code**, with nothing to clone:
+**In Claude Code**, with nothing to clone. Type these at Claude Code's prompt (start it with `claude`), not in your terminal:
 
 ```text
 /plugin marketplace add Callahan-ci/quartet-qe

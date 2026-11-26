@@ -6,7 +6,7 @@ It tests REST APIs, Kafka, Postgres and MongoDB, web pages in Chromium, Firefox 
 
 ## Install
 
-In Claude Code:
+In Claude Code, at its prompt (start it with `claude`), not in your terminal:
 
 ```
 /plugin marketplace add Callahan-ci/quartet-qe
