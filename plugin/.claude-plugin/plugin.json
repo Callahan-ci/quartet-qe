@@ -1,7 +1,7 @@
 {
   "name": "quartet-qe",
   "displayName": "Quartet QE",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Write end-to-end tests from a user story (API, Kafka, databases, web, phone browsers, Android), have the AI check its own work, replay them with no AI, and review everything on one page before it merges.",
   "author": {
     "name": "Callahan CI",
