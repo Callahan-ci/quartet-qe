@@ -335,7 +335,7 @@ Run `./quartet-qe doctor` any time to check your setup.
 
 ## Use it as a Claude plugin
 
-In Claude Code, add this repository as a marketplace and install the plugin. You do not need to clone anything:
+In Claude Code, add this repository as a marketplace and install the plugin. You do not need to clone anything. Type these at Claude Code's prompt (start it with `claude`), not in your terminal, where they fail with "no such file or directory":
 
 ```
 /plugin marketplace add Callahan-ci/quartet-qe
